@@ -141,3 +141,66 @@ Método Manual Rápido (para actualizar):
    pip install -r requirements.txt  # Si hubo cambios
    flask db upgrade                 # Si hubo cambios en BD
    sudo systemctl restart learnation
+
+4. GUÍA DE DESPLIEGUE EN RAILWAY (PAAS)
+---------------------------------------
+Esta guía explica cómo desplegar el proyecto en Railway.app, configurar la base de datos PostgreSQL y conectar un subdominio de Hostinger.
+
+PASO 1: PREPARACIÓN DEL PROYECTO (Ya realizado)
+a. Asegurarse de tener 'gunicorn' en requirements.txt.
+b. Tener un archivo 'Procfile' con el contenido: web: gunicorn run:app
+c. Hacer commit y push de estos cambios a GitHub.
+
+PASO 2: CREAR PROYECTO EN RAILWAY
+a. Ir a https://railway.app/ y hacer login (preferiblemente con GitHub).
+b. Click en "New Project" -> "Deploy from GitHub repo".
+c. Seleccionar el repositorio 'NeurOPS'.
+d. Click en "Deploy Now".
+
+PASO 3: BASE DE DATOS POSTGRESQL
+a. En la vista del proyecto en Railway, click derecho en el lienzo (o botón "New") -> "Database" -> "Add PostgreSQL".
+b. Esto creará un servicio de base de datos. Espera a que se inicie.
+c. Click en el servicio de PostgreSQL -> Pestaña "Variables".
+d. Copia la variable `DATABASE_URL`.
+
+PASO 4: CONFIGURAR VARIABLES DE ENTORNO
+a. Click en el servicio de tu aplicación (el repo de GitHub).
+b. Ve a la pestaña "Variables".
+c. Agrega las siguientes variables:
+   - DATABASE_URL: (Pega el valor copiado del servicio de PostgreSQL)
+   - SECRET_KEY: (Genera una clave segura)
+   - FLASK_ENV: production
+   - FLASK_APP: run.py
+d. Railway redeteatrá los cambios y reiniciará el despliegue automáticamente.
+
+PASO 5: MIGRACIONES (Base de datos)
+a. Una vez desplegado, ve a la pestaña "Settings" del servicio de la aplicación.
+b. Busca la sección "Deploy" -> "Start Command".
+c. Puedes modificar el comando de inicio para ejecutar migraciones antes de iniciar, o usar la CLI de Railway.
+   Opción Recomendada (Build Command):
+   En "Build Command" (si existe) o usando la consola de Railway:
+   1. Instala Railway CLI localmente: npm i -g @railway/cli
+   2. Login: railway login
+   3. Link: railway link (selecciona tu proyecto)
+   4. Ejecutar migración: railway run flask db upgrade
+   
+   Alternativa rápida (sin CLI):
+   Cambiar el "Start Command" en Railway settings temporalmente a:
+   flask db upgrade && gunicorn run:app
+   (Esto ejecutará migraciones en cada reinicio, lo cual es aceptable).
+
+PASO 6: CONFIGURAR SUBDOMINIO (HOSTINGER)
+a. En Railway, servicio de la aplicación -> Settings -> Networking -> Public Networking.
+b. Click en "Generate Domain" (te dará algo como `neurops-production.up.railway.app`).
+c. Click en "Custom Domain" -> Escribe tu subdominio (ej: `app.midominio.com`).
+d. Railway te dará un registro CNAME o A para configurar. Normalmente es un CNAME apuntando al dominio de Railway.
+
+e. Ve a Hostinger -> Panel de Control -> Dominios -> DNS / Zone Editor.
+f. Agrega un nuevo registro:
+   - Tipo: CNAME
+   - Nombre: app (o el subdominio que elegiste)
+   - Objetivo/Target: (El dominio que te dio Railway, ej: neurops-project.up.railway.app)
+   - TTL: 3600 (o por defecto)
+g. Guarda los cambios.
+h. Espera unos minutos (puede tardar hasta 24h, pero suele ser rápido) para que se propague. Railway validará el dominio y generará el certificado SSL automáticamente.
+
