@@ -1,7 +1,7 @@
 from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 from app.admin import bp
-from app.admin.forms import UserForm, SurveyQuestionForm, EventForm, ProgramForm, PaymentMethodForm, ClientEditForm, PaymentForm, ExpenseForm, RecurringExpenseForm, EventGroupForm
+from app.admin.forms import UserForm, SurveyQuestionForm, EventForm, ProgramForm, PaymentMethodForm, ClientEditForm, PaymentForm, ExpenseForm, RecurringExpenseForm, EventGroupForm, ManualAddForm
 from app.models import User, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup 
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import or_
@@ -344,8 +344,8 @@ def leads_list():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
-    # Base query for leads/students
-    query = User.query.filter(User.role.in_(['lead', 'student']))
+    # Base query for leads/students/agendas
+    query = User.query.filter(User.role.in_(['lead', 'student', 'agenda']))
 
     # Date Filter
     if start_date_str:
@@ -365,11 +365,55 @@ def leads_list():
     
     return render_template('admin/leads_list.html', leads=leads, search=search, start_date=start_date_str, end_date=end_date_str)
 
+@bp.route('/users/add-manual', methods=['GET', 'POST'])
+@admin_required
+def add_manual_user():
+    form = ManualAddForm()
+    if form.validate_on_submit():
+        # Determine status based on role
+        status = 'new'
+        if form.role.data == 'student':
+            status = 'completed' # Assuming completed sale if added as client
+        
+        # Create User
+        user = User(
+            username=form.username.data,
+            email=form.email.data,
+            role=form.role.data
+        )
+        # Set default generic password or handle auth differently. 
+        # Ideally, send invite email. For now, set a default.
+        user.set_password('12345678') 
+        
+        try:
+            db.session.add(user)
+            db.session.flush() # To get user ID
+            
+            # Create Profile
+            profile = LeadProfile(
+                user_id=user.id,
+                phone=form.phone.data,
+                instagram=form.instagram.data,
+                status=status,
+                utm_source='manual'
+            )
+            db.session.add(profile)
+            db.session.commit()
+            flash(f'Usuario {user.username} agregado exitosamente.')
+            return redirect(url_for('admin.leads_list'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash('Error: El email o usuario ya existe.')
+            print(e)
+            
+    return render_template('admin/add_manual_user.html', form=form, title='Agregar Nuevo Cliente')
+
 @bp.route('/leads/profile/<int:id>')
 @admin_required
 def lead_profile(id):
     user = User.query.get_or_404(id)
-    if user.role not in ['lead', 'student']:
+    if user.role not in ['lead', 'student', 'agenda']:
         flash('Perfil no disponible para este rol.')
         return redirect(url_for('admin.leads_list'))
     
@@ -386,7 +430,7 @@ def update_lead_quick(id):
     
     # Update Role
     new_role = request.form.get('role')
-    if new_role in ['lead', 'student']:
+    if new_role in ['lead', 'student', 'agenda']:
         user.role = new_role
         
     # Update Status

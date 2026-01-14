@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-white">{{ title }}</h1>
+        <a href="{{ url_for('admin.leads_list') }}" class="text-gray-400 hover:text-white">
+            <i class="fas fa-arrow-left mr-1"></i> Volver a Lista
+        </a>
+    </div>
+
+    <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Username -->
+                <div>
+                    {{ form.username.label(class="block text-gray-300 text-sm font-bold mb-2") }}
+                    {{ form.username(class="shadow appearance-none border border-gray-600 rounded w-full py-2 px-3 text-gray-300 bg-gray-700 leading-tight focus:outline-none focus:shadow-outline") }}
+                    {% for error in form.username.errors %}
+                        <span class="text-red-500 text-xs italic">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <!-- Email -->
+                <div>
+                    {{ form.email.label(class="block text-gray-300 text-sm font-bold mb-2") }}
+                    {{ form.email(class="shadow appearance-none border border-gray-600 rounded w-full py-2 px-3 text-gray-300 bg-gray-700 leading-tight focus:outline-none focus:shadow-outline") }}
+                    {% for error in form.email.errors %}
+                        <span class="text-red-500 text-xs italic">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <!-- Phone -->
+                <div>
+                    {{ form.phone.label(class="block text-gray-300 text-sm font-bold mb-2") }}
+                    {{ form.phone(class="shadow appearance-none border border-gray-600 rounded w-full py-2 px-3 text-gray-300 bg-gray-700 leading-tight focus:outline-none focus:shadow-outline") }}
+                    {% for error in form.phone.errors %}
+                        <span class="text-red-500 text-xs italic">{{ error }}</span>
+                    {% endfor %}
+                </div>
+
+                <!-- Instagram -->
+                <div>
+                    {{ form.instagram.label(class="block text-gray-300 text-sm font-bold mb-2") }}
+                    {{ form.instagram(class="shadow appearance-none border border-gray-600 rounded w-full py-2 px-3 text-gray-300 bg-gray-700 leading-tight focus:outline-none focus:shadow-outline") }}
+                    {% for error in form.instagram.errors %}
+                        <span class="text-red-500 text-xs italic">{{ error }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Role Selection -->
+            <div class="mb-6">
+                {{ form.role.label(class="block text-gray-300 text-sm font-bold mb-2") }}
+                {{ form.role(class="shadow appearance-none border border-gray-600 rounded w-full py-2 px-3 text-gray-300 bg-gray-700 leading-tight focus:outline-none focus:shadow-outline") }}
+                <p class="text-gray-500 text-xs mt-1">Selecciona 'Lead' para prospecto, 'Agenda' si ya agendó, o 'Cliente' si compró.</p>
+                {% for error in form.role.errors %}
+                     <span class="text-red-500 text-xs italic">{{ error }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="flex justify-end">
+                {{ form.submit(class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-150") }}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

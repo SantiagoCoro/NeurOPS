@@ -10,6 +10,20 @@ class UserForm(FlaskForm):
     role = SelectField('Rol', choices=[('admin', 'Administrador'), ('closer', 'Closer'), ('lead', 'Lead'), ('student', 'Estudiante')], validators=[DataRequired()])
     submit = SubmitField('Guardar')
 
+class ManualAddForm(FlaskForm):
+    username = StringField('Nombre Completo', validators=[DataRequired(), Length(min=2, max=64)])
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    phone = StringField('Teléfono', validators=[Optional(), Length(max=20)])
+    instagram = StringField('Instagram', validators=[Optional(), Length(max=64)])
+    
+    role = SelectField('Tipo de Usuario', choices=[
+        ('lead', 'Lead (Nuevo)'),
+        ('agenda', 'Agendas (Cita Pendiente)'),
+        ('student', 'Cliente (Venta)')
+    ], validators=[DataRequired()])
+    
+    submit = SubmitField('Guardar')
+
 class SurveyQuestionForm(FlaskForm):
     text = StringField('Pregunta', validators=[DataRequired(), Length(max=255)])
     question_type = SelectField('Tipo', choices=[('text', 'Texto Corto'), ('textarea', 'Texto Largo'), ('select', 'Selección'), ('email', 'Email'), ('tel', 'Teléfono')], validators=[DataRequired()])
@@ -48,7 +62,7 @@ class PaymentMethodForm(FlaskForm):
 class ClientEditForm(FlaskForm):
     username = StringField('Nombre', validators=[DataRequired(), Length(min=2, max=64)])
     email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
-    role = SelectField('Rol', choices=[('lead', 'Cliente'), ('student', 'Estudiante')], validators=[DataRequired()])
+    role = SelectField('Rol', choices=[('lead', 'Cliente'), ('agenda', 'Agenda'), ('student', 'Estudiante')], validators=[DataRequired()])
     phone = StringField('Teléfono', validators=[Optional(), Length(max=20)])
     instagram = StringField('Instagram', validators=[Optional(), Length(max=64)])
     status = SelectField('Estado', choices=[

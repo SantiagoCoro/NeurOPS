@@ -11,6 +11,13 @@
         {% include "includes/admin_unified_filters.html" %}
         {% endwith %}
 
+        <div class="flex justify-end mb-4">
+            <a href="{{ url_for('admin.add_manual_user') }}"
+                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-150 ease-in-out">
+                <i class="fas fa-plus mr-2"></i>Agregar
+            </a>
+        </div>
+
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <table class="w-full text-left">
                 <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
@@ -49,6 +56,16 @@
                             {% endfor %}
                             {% else %}
                             <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+                        <!-- Role Display -->
+                        <td class="px-6 py-4">
+                            {% if lead.role == 'student' %}
+                            <span class="bg-blue-900 text-blue-300 py-1 px-2 rounded text-xs">Estudiante</span>
+                            {% elif lead.role == 'agenda' %}
+                            <span class="bg-purple-900 text-purple-300 py-1 px-2 rounded text-xs">Agenda</span>
+                            {% else %}
+                            <span class="bg-gray-700 text-gray-300 py-1 px-2 rounded text-xs">Lead</span>
                             {% endif %}
                         </td>
                         <!-- Role Selection -->

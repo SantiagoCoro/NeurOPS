@@ -11,6 +11,7 @@ def load_user(id):
 ROLE_ADMIN = 'admin'
 ROLE_CLOSER = 'closer'
 ROLE_LEAD = 'lead'
+ROLE_AGENDA = 'agenda'
 ROLE_STUDENT = 'student'
 
 class User(UserMixin, db.Model):
