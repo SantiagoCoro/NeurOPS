@@ -1,0 +1,17 @@
+# Reglas de Desarrollo del Proyecto NeurOPS
+
+1. **Idioma**: Todas las respuestas y comunicaciones deben ser en **Español**.
+2. **Entorno Virtual**: Siempre utilizar el entorno virtual para ejecutar scripts y el servidor (`env`).
+3. **Base de Datos**:
+    - **Local**: SQLite.
+    - **Producción**: PostgreSQL.
+4. **Infraestructura**:
+    - El proyecto está desplegado en **Railway**.
+    - Utiliza un subdominio de **Hostinger**.
+5. **Calidad de Código**:
+    - Mantener el código limpio y organizado (Clean Code).
+    - Utilizar buenas prácticas de desarrollo.
+    - **No subir código basura** ni archivos temporales al repositorio.
+6. **Entorno de Trabajo**:
+    - Mantener el directorio de trabajo limpio.
+    - Eliminar archivos de prueba o scripts de un solo uso antes de hacer commit (o usar .gitignore).
