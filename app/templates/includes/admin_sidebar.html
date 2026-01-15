@@ -36,7 +36,7 @@
         <div class="h-px bg-slate-800 my-2 mx-2" x-show="!expanded"></div>
 
         <!-- Dashboard -->
-        <a href="{{ url_for('admin.dashboard') }}"
+        <a href="{{ url_for('admin.dashboard') }}" data-tooltip="Dashboard"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.dashboard' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -46,13 +46,10 @@
                     d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Dashboard</span>
-            <!-- Tooltip for collapsed -->
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Dashboard</div>
         </a>
 
         <!-- Finanzas -->
-        <a href="{{ url_for('admin.finances') }}"
+        <a href="{{ url_for('admin.finances') }}" data-tooltip="Finanzas"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{{ 'bg-indigo-700 text-white' if request.endpoint == 'admin.finances' else 'text-indigo-200 hover:bg-indigo-700 hover:text-white' }}">
@@ -62,12 +59,10 @@
                     d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Finanzas</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Finanzas</div>
         </a>
 
         <!-- Usuarios -->
-        <a href="{{ url_for('admin.users_list') }}"
+        <a href="{{ url_for('admin.users_list') }}" data-tooltip="Usuarios"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.users_list' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800 text-white font-medium{% endif %}">
@@ -77,8 +72,6 @@
                     d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Usuarios</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Usuarios</div>
         </a>
 
         <!-- Section Label -->
@@ -87,7 +80,7 @@
         <div class="h-px bg-slate-800 my-2 mx-2" x-show="!expanded"></div>
 
         <!-- Clientes -->
-        <a href="{{ url_for('admin.leads_list') }}"
+        <a href="{{ url_for('admin.leads_list') }}" data-tooltip="Clientes"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.leads_list' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -97,12 +90,10 @@
                     d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Clientes</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Clientes</div>
         </a>
 
         <!-- Agendas -->
-        <a href="{{ url_for('admin.appointments_list') }}"
+        <a href="{{ url_for('admin.appointments_list') }}" data-tooltip="Agendas"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.appointments_list' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -112,12 +103,10 @@
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Agendas</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Agendas</div>
         </a>
 
-        <!-- Ventas (From Closer BP but shown here) -->
-        <a href="{{ url_for('admin.sales_list') }}"
+        <!-- Ventas -->
+        <a href="{{ url_for('admin.sales_list') }}" data-tooltip="Ventas"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.sales_list' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -127,17 +116,15 @@
                     d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Ventas</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Ventas</div>
         </a>
 
-        <!-- Config Section -- Less important items -->
+        <!-- Config Section -->
         <div class="px-2 text-xs font-bold text-gray-500 uppercase mt-4 truncate" x-show="expanded" x-transition>
             Configuración</div>
         <div class="h-px bg-slate-800 my-2 mx-2" x-show="!expanded"></div>
 
         <!-- Encuesta -->
-        <a href="{{ url_for('admin.survey_mgmt') }}"
+        <a href="{{ url_for('admin.survey_mgmt') }}" data-tooltip="Encuesta"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if 'survey' in request.endpoint %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -147,12 +134,10 @@
                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Encuesta Leads</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Encuesta</div>
         </a>
 
         <!-- Eventos -->
-        <a href="{{ url_for('admin.events_list') }}"
+        <a href="{{ url_for('admin.events_list') }}" data-tooltip="Eventos"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if 'event' in request.endpoint %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -162,12 +147,10 @@
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Eventos</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Eventos</div>
         </a>
 
         <!-- Grupos de Eventos -->
-        <a href="{{ url_for('admin.event_groups') }}"
+        <a href="{{ url_for('admin.event_groups') }}" data-tooltip="Grupos de Eventos"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if 'groups' in request.endpoint %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -177,12 +160,10 @@
                     d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Grupos de Eventos</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Grupos de Eventos</div>
         </a>
 
         <!-- Programas -->
-        <a href="{{ url_for('admin.programs_list') }}"
+        <a href="{{ url_for('admin.programs_list') }}" data-tooltip="Programas"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.programs_list' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -192,12 +173,10 @@
                     d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Programas</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Programas</div>
         </a>
 
         <!-- Métodos Pago -->
-        <a href="{{ url_for('admin.payment_methods_list') }}"
+        <a href="{{ url_for('admin.payment_methods_list') }}" data-tooltip="Métodos Pago"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.payment_methods_list' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -207,12 +186,10 @@
                     d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Métodos Pago</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Pagos Config</div>
         </a>
 
         <!-- Importación -->
-        <a href="{{ url_for('admin.import_dashboard') }}"
+        <a href="{{ url_for('admin.import_dashboard') }}" data-tooltip="Importar Datos"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.import_dashboard' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -222,12 +199,10 @@
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Importar Datos</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Importar</div>
         </a>
 
         <!-- Integraciones -->
-        <a href="{{ url_for('admin.integrations') }}"
+        <a href="{{ url_for('admin.integrations') }}" data-tooltip="Integraciones"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'admin.integrations' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -236,8 +211,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Integraciones</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Integraciones</div>
         </a>
 
     </nav>
@@ -302,3 +275,58 @@
         /* gray-600 */
     }
 </style>
+
+<!-- Global Sidebar Tooltip (Fixed Position) -->
+<div id="sidebar-tooltip"
+    class="fixed bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 transition-opacity duration-200 z-[100] pointer-events-none hidden font-medium shadow-lg border border-gray-700">
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const tooltip = document.getElementById('sidebar-tooltip');
+        // Select links with data-tooltip in the sidebar nav
+        const navLinks = document.querySelectorAll('aside nav a[data-tooltip]');
+
+        navLinks.forEach(link => {
+            link.addEventListener('mouseenter', (e) => {
+                // Check if sidebar is collapsed (w-20 class present on aside)
+                const aside = link.closest('aside');
+                // Alternatively check Alpine store if available, but class check is reliable enough for view logic
+                // If the sidebar has 'w-20', it is collapsed.
+                if (aside && aside.classList.contains('w-20')) {
+                    const text = link.getAttribute('data-tooltip');
+                    if (text) {
+                        tooltip.textContent = text;
+                        tooltip.classList.remove('hidden');
+
+                        // Position logic
+                        const rect = link.getBoundingClientRect();
+                        // Position to the right of the sidebar icon
+                        // Rect right is the edge of the link (which is full width of sidebar in collapsed mode usually or centered?
+                        // In collapsed mode, link is justify-center.
+                        // Let's place it slightly to the right of the ICON or the Link container.
+
+                        tooltip.style.left = (rect.right + 5) + 'px';
+                        tooltip.style.top = (rect.top + (rect.height / 2) - 10) + 'px'; // Center roughly
+
+                        // Reveal
+                        // Small delay to ensure position applied
+                        requestAnimationFrame(() => {
+                            tooltip.classList.remove('opacity-0');
+                        });
+                    }
+                }
+            });
+
+            link.addEventListener('mouseleave', () => {
+                tooltip.classList.add('opacity-0');
+                // Wait for transition before hiding
+                setTimeout(() => {
+                    if (tooltip.classList.contains('opacity-0')) {
+                        tooltip.classList.add('hidden');
+                    }
+                }, 200);
+            });
+        });
+    });
+</script>

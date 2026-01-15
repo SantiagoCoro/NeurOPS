@@ -36,7 +36,7 @@
         <div class="h-px bg-slate-800 my-2 mx-2" x-show="!expanded"></div>
 
         <!-- Mis Agendas (Dashboard) -->
-        <a href="{{ url_for('closer.dashboard') }}"
+        <a href="{{ url_for('closer.dashboard') }}" data-tooltip="Mis Agendas"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'closer.dashboard' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -46,13 +46,10 @@
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Mis Agendas</span>
-            <!-- Tooltip -->
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Mis Agendas</div>
         </a>
 
         <!-- Mi Calendario -->
-        <a href="{{ url_for('closer.calendar') }}"
+        <a href="{{ url_for('closer.calendar') }}" data-tooltip="Mi Calendario"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if request.endpoint == 'closer.calendar' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -62,8 +59,6 @@
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Mi Calendario</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Calendario</div>
         </a>
 
         <!-- Section Label -->
@@ -72,7 +67,7 @@
         <div class="h-px bg-slate-800 my-2 mx-2" x-show="!expanded"></div>
 
         <!-- Clientes -->
-        <a href="{{ url_for('closer.leads_list') }}"
+        <a href="{{ url_for('closer.leads_list') }}" data-tooltip="Clientes"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if 'leads' in request.endpoint or 'lead' in request.endpoint %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -82,12 +77,10 @@
                     d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Clientes</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Clientes</div>
         </a>
 
         <!-- Control de Ventas -->
-        <a href="{{ url_for('closer.sales_list') }}"
+        <a href="{{ url_for('closer.sales_list') }}" data-tooltip="Control de Ventas"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
             class="{% if 'sale' in request.endpoint %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
@@ -97,8 +90,6 @@
                     d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span x-show="expanded" class="whitespace-nowrap transition-opacity">Control de Ventas</span>
-            <div class="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none whitespace-nowrap"
-                x-show="!expanded" style="display: none;">Ventas</div>
         </a>
 
     </nav>
@@ -163,3 +154,52 @@
         /* gray-600 */
     }
 </style>
+
+<!-- Global Sidebar Tooltip (Fixed Position) -->
+<div id="closer-sidebar-tooltip"
+    class="fixed bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 transition-opacity duration-200 z-[100] pointer-events-none hidden font-medium shadow-lg border border-gray-700">
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const tooltip = document.getElementById('closer-sidebar-tooltip');
+        // Select links with data-tooltip in the sidebar nav
+        const navLinks = document.querySelectorAll('aside nav a[data-tooltip]');
+
+        navLinks.forEach(link => {
+            link.addEventListener('mouseenter', (e) => {
+                // Check if sidebar is collapsed (w-20 class present on aside)
+                const aside = link.closest('aside');
+                // If the sidebar has 'w-20', it is collapsed.
+                if (aside && aside.classList.contains('w-20')) {
+                    const text = link.getAttribute('data-tooltip');
+                    if (text) {
+                        tooltip.textContent = text;
+                        tooltip.classList.remove('hidden');
+
+                        // Position logic
+                        const rect = link.getBoundingClientRect();
+
+                        tooltip.style.left = (rect.right + 5) + 'px';
+                        tooltip.style.top = (rect.top + (rect.height / 2) - 10) + 'px'; // Center roughly
+
+                        // Reveal
+                        requestAnimationFrame(() => {
+                            tooltip.classList.remove('opacity-0');
+                        });
+                    }
+                }
+            });
+
+            link.addEventListener('mouseleave', () => {
+                tooltip.classList.add('opacity-0');
+                // Wait for transition before hiding
+                setTimeout(() => {
+                    if (tooltip.classList.contains('opacity-0')) {
+                        tooltip.classList.add('hidden');
+                    }
+                }, 200);
+            });
+        });
+    });
+</script>
