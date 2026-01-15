@@ -59,6 +59,7 @@
                         <!-- Role Selection -->
                         <td class="px-6 py-3">
                             <form action="{{ url_for('closer.update_lead_quick', id=lead.id) }}" method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                                 <select name="role" onchange="this.form.submit()"
                                     class="text-xs rounded-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-6
                                     {% if lead.role == 'student' %}bg-green-50 text-green-700{% else %}bg-blue-50 text-blue-700{% endif %}">

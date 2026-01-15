@@ -72,6 +72,35 @@ class User(UserMixin, db.Model):
                 total_debt += debt
         return total_debt
 
+    def update_status_based_on_debt(self):
+        """Updates the user's lead profile status based on current debt and enrollments."""
+        if not self.lead_profile:
+            # Create profile if missing
+            profile = LeadProfile(user_id=self.id)
+            db.session.add(profile)
+            self.lead_profile = profile
+        
+        has_enrollments = self.enrollments.count() > 0
+        debt = self.current_active_debt
+        
+        new_status = self.lead_profile.status
+        
+        if not has_enrollments:
+            # No enrollments -> New
+            new_status = 'new'
+        elif debt > 0:
+            # Has debt -> Pending
+            new_status = 'pending'
+        elif debt <= 0 and has_enrollments:
+            # No debt but has enrollments -> Completed
+            new_status = 'completed'
+            
+        if new_status != self.lead_profile.status:
+            self.lead_profile.status = new_status
+            db.session.add(self.lead_profile)
+            db.session.commit()
+
+
 class LeadProfile(db.Model):
     __tablename__ = 'lead_profiles'
     id = db.Column(db.Integer, primary_key=True)

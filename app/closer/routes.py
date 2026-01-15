@@ -734,11 +734,25 @@ def edit_sale(id):
 @closer_required
 def delete_sale(id):
     payment = Payment.query.get_or_404(id)
-    # If standard user, maybe restrict delete? User said "Admin and Closer". Open for now.
+    enrollment = payment.enrollment # Store ref
+    student_id = enrollment.student_id
+    
     db.session.delete(payment)
-    # Check if we should delete enrollment? Only if no payments left? 
-    # Let's leave enrollment active for safety unless manual cleanup.
+    db.session.flush() # Ensure payment is effectively removed from query checks
+    
+    # Check if we should delete enrollment (if no payments left)
+    # This logic assumes "Deleting a sale" implies undoing the deal if no money exchanged.
+    remaining_payments = enrollment.payments.count()
+    if remaining_payments == 0:
+        db.session.delete(enrollment)
+        
     db.session.commit()
+    
+    # Auto-update status
+    user = User.query.get(student_id)
+    if user:
+        user.update_status_based_on_debt()
+        
     flash('Venta eliminada.')
     return redirect(url_for('closer.sales_list'))
 
@@ -880,9 +894,23 @@ def edit_payment(id):
 @closer_required
 def delete_payment_detail(id):
     payment = Payment.query.get_or_404(id)
-    student_id = payment.enrollment.student_id
+    enrollment = payment.enrollment
+    student_id = enrollment.student_id
+    
     db.session.delete(payment)
+    db.session.flush()
+    
+    # Check orphan enrollment
+    if enrollment.payments.count() == 0:
+        db.session.delete(enrollment)
+        
     db.session.commit()
+    
+    # Auto-update status
+    user = User.query.get(student_id)
+    if user:
+        user.update_status_based_on_debt()
+        
     flash('Pago eliminado.')
     return redirect(url_for('closer.lead_detail', id=student_id))
 

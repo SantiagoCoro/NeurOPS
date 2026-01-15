@@ -596,7 +596,9 @@ def add_payment(enrollment_id):
         send_sales_webhook(payment, current_user.username)
         
         # Auto-update status
-        update_user_status_after_payment(enrollment.student_id)
+        user = User.query.get(enrollment.student_id)
+        if user:
+            user.update_status_based_on_debt()
         
         flash('Pago registrado.')
         if next_url:
@@ -633,7 +635,9 @@ def edit_payment(id):
         db.session.commit()
         
         # Auto-update status
-        update_user_status_after_payment(payment.enrollment.student_id)
+        user = User.query.get(payment.enrollment.student_id)
+        if user:
+            user.update_status_based_on_debt()
         
         flash('Pago actualizado.')
         
@@ -649,13 +653,22 @@ def edit_payment(id):
 @admin_required
 def delete_payment(id):
     payment = Payment.query.get_or_404(id)
-    student_id = payment.enrollment.student_id # Store before deleting payment
+    enrollment = payment.enrollment
+    student_id = enrollment.student_id # Store before deleting payment
     
     db.session.delete(payment)
+    db.session.flush()
+    
+    # Check orphan enrollment
+    if enrollment.payments.count() == 0:
+        db.session.delete(enrollment)
+        
     db.session.commit()
     
     # Auto-update status
-    update_user_status_after_payment(student_id)
+    user = User.query.get(student_id)
+    if user:
+        user.update_status_based_on_debt()
     
     flash('Pago eliminado.')
     
@@ -665,29 +678,7 @@ def delete_payment(id):
         
     return redirect(url_for('admin.edit_client', id=student_id))
 
-def update_user_status_after_payment(user_id):
-    """Helper to update user status based on debt after payment changes."""
-    user = User.query.get(user_id)
-    if not user: return
 
-    if not user.lead_profile:
-         profile = LeadProfile(user_id=user.id)
-         db.session.add(profile)
-         user.lead_profile = profile
-    
-    debt = user.current_active_debt
-    has_enrollments = user.enrollments.count() > 0
-    
-    new_status = user.lead_profile.status
-    
-    if debt > 0:
-        new_status = 'pending'
-    elif debt == 0 and has_enrollments:
-        new_status = 'completed'
-        
-    if new_status != user.lead_profile.status:
-        user.lead_profile.status = new_status
-        db.session.commit()
 
 # --- Survey Management Routes ---
 
@@ -1653,6 +1644,11 @@ def delete_enrollment(id):
     
     db.session.delete(enrollment)
     db.session.commit()
+    
+    # Auto-update status
+    user = User.query.get(student_id)
+    if user:
+        user.update_status_based_on_debt()
     
     flash('Inscripción eliminada.')
     return redirect(url_for('admin.lead_profile', id=student_id))
