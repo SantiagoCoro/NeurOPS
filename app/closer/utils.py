@@ -42,10 +42,24 @@ def send_sales_webhook(payment, closer_name):
     
     Data: Client, Closer, Amount, Cash Collect (Net), Payment Type, Program, Method
     """
-    webhook_url = current_app.config.get('VENTAS_WEBHOOK')
+    # Fetch dynamic integration
+    from app.models import Integration
     
+    integration = Integration.query.filter_by(key='sales').first()
+    webhook_url = None
+    
+    if integration:
+        if integration.active_env == 'prod':
+            webhook_url = integration.url_prod
+        else:
+            webhook_url = integration.url_dev
+            
+    # Fallback to Config if DB entry not found or empty (though we create it on admin view)
     if not webhook_url:
-        print("Sales Webhook URL not configured.", flush=True)
+         webhook_url = current_app.config.get('VENTAS_WEBHOOK')
+
+    if not webhook_url:
+        print("Sales Webhook URL not configured (DB or Config).", flush=True)
         return
     
     print(f"Sales Webhook initiated for {payment.payment_type_label}", flush=True)

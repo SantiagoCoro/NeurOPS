@@ -1,0 +1,100 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+    {% include "includes/admin_sidebar.html" %}
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6">Integraciones</h1>
+
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <div class="mb-6">
+                {% for message in messages %}
+                <div class="p-4 bg-green-100 text-green-700 rounded-lg text-sm">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                        <i class="fas fa-plug text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">{{ integration.name }}</h2>
+                        <p class="text-sm text-gray-500">Configura los webhooks para desarrollo y producción.</p>
+                    </div>
+                </div>
+
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Dev Environment -->
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Webhook Desarrollo (Dev)</label>
+                            <input type="url" name="url_dev" value="{{ integration.url_dev or '' }}"
+                                class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                placeholder="https://webhook.site/...">
+                            <div class="flex items-center gap-2 mt-2">
+                                <input type="radio" id="env_dev" name="active_env" value="dev"
+                                    class="text-blue-600 focus:ring-blue-500" {% if integration.active_env=='dev'
+                                    %}checked{% endif %}>
+                                <label for="env_dev" class="text-sm text-gray-600 cursor-pointer">Activar
+                                    Desarrollo</label>
+                            </div>
+                        </div>
+
+                        <!-- Prod Environment -->
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Webhook Test / Producción</label>
+                            <input type="url" name="url_prod" value="{{ integration.url_prod or '' }}"
+                                class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                placeholder="https://n8n.webhook/...">
+                            <div class="flex items-center gap-2 mt-2">
+                                <input type="radio" id="env_prod" name="active_env" value="prod"
+                                    class="text-blue-600 focus:ring-blue-500" {% if integration.active_env=='prod'
+                                    %}checked{% endif %}>
+                                <label for="env_prod" class="text-sm text-gray-600 cursor-pointer">Activar
+                                    Producción/Test</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-6 border-t border-gray-100">
+                        <div class="text-sm">
+                            <span class="text-gray-500">Estado Actual:</span>
+                            {% if integration.active_env == 'dev' %}
+                            <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded font-bold text-xs ml-2">DATA ->
+                                DEV</span>
+                            {% else %}
+                            <span class="px-2 py-1 bg-green-100 text-green-800 rounded font-bold text-xs ml-2">DATA ->
+                                PROD/TEST</span>
+                            {% endif %}
+                        </div>
+                        <button type="submit"
+                            class="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition">
+                            Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Placeholder for other connections -->
+            <div class="mt-8 opacity-50 pointer-events-none">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Otras Conexiones</h3>
+                    <button class="text-sm text-blue-600 font-medium">+ Agregar Webhook</button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-400">
+                    Manejo de rutas adicionales (Próximamente)
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+{% endblock %}

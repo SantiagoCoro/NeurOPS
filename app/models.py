@@ -293,3 +293,15 @@ class UserViewSetting(db.Model):
 
     def __repr__(self):
         return f'<ViewSetting {self.view_name} for {self.user_id}>'
+
+class Integration(db.Model):
+    __tablename__ = 'integrations'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(50), unique=True, nullable=False) # e.g. 'sales'
+    name = db.Column(db.String(100), nullable=False) # e.g. 'Ventas'
+    url_dev = db.Column(db.String(255))
+    url_prod = db.Column(db.String(255))
+    active_env = db.Column(db.String(10), default='dev') # 'dev' or 'prod'
+
+    def __repr__(self):
+        return f'<Integration {self.name} ({self.active_env})>'

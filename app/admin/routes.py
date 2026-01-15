@@ -5,7 +5,7 @@ from app.admin import bp
 from app.admin.forms import UserForm, SurveyQuestionForm, EventForm, ProgramForm, PaymentMethodForm, ClientEditForm, PaymentForm, ExpenseForm, RecurringExpenseForm, EventGroupForm, ManualAddForm, AdminSaleForm
 from app.closer.forms import SaleForm, LeadForm
 from app.closer.utils import send_sales_webhook
-from app.models import User, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup, UserViewSetting 
+from app.models import User, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup, UserViewSetting, Integration 
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import or_
 
@@ -1891,3 +1891,39 @@ def delete_enrollment(id):
     flash('Inscripción eliminada.')
     return redirect(url_for('admin.lead_profile', id=student_id))
 
+@bp.route('/integrations', methods=['GET', 'POST'])
+@admin_required
+def integrations():
+    # Only handling 'sales' integration for now as requested
+    integration = Integration.query.filter_by(key='sales').first()
+    
+    # Init if missing (auto-creation logic)
+    if not integration:
+        integration = Integration(
+            key='sales',
+            name='Ventas',
+            url_dev='',
+            url_prod='',
+            active_env='dev'
+        )
+        db.session.add(integration)
+        db.session.commit()
+    
+    if request.method == 'POST':
+        integration.url_dev = request.form.get('url_dev')
+        integration.url_prod = request.form.get('url_prod')
+        
+        # Checkbox handling
+        # User wants a button to switch? Or radio?
+        # User requested: "dos espacios para poner el link webhook de desarrollo y de test y un boton para cambiar de uno a otro"
+        # Let's interpret "Activo" as radio or toggle.
+        
+        active_env = request.form.get('active_env') # 'dev' or 'prod'
+        if active_env in ['dev', 'prod']:
+            integration.active_env = active_env
+            
+        db.session.commit()
+        flash('Integraciones actualizadas.')
+        return redirect(url_for('admin.integrations'))
+        
+    return render_template('admin/integrations.html', integration=integration)
