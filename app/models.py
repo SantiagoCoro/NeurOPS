@@ -66,7 +66,8 @@ class User(UserMixin, db.Model):
             paid = enr.total_paid
             # Ensure we don't count negative debt (overpayment) as debt, unless desired? 
             # Usually debt is max(0, agreed - paid)
-            debt = enr.total_agreed - paid
+            agreed = enr.total_agreed if enr.total_agreed is not None else (enr.program.price if enr.program else 0.0)
+            debt = agreed - paid
             if debt > 0:
                 total_debt += debt
         return total_debt
@@ -118,6 +119,7 @@ class Program(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     price = db.Column(db.Float, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
     # Description removed per user request
 
     enrollments = db.relationship('Enrollment', backref='program', lazy='dynamic')
@@ -174,7 +176,8 @@ class Payment(db.Model):
             'full': 'Pago Completo',
             'down_payment': 'Primer Pago',
             'installment': 'Cuota',
-            'renewal': 'Renovación'
+            'renewal': 'Renovación',
+            'deposit': 'Seña'
         }
         return labels.get(self.payment_type, self.payment_type)
 

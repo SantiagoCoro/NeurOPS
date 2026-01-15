@@ -1,0 +1,119 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Importación Masiva de Datos{% endblock %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+    {% include "includes/admin_sidebar.html" %}
+    <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+        <div class="container mx-auto px-6 py-8">
+            <h3 class="text-gray-700 text-3xl font-medium mb-4">Importación Masiva de Datos</h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Step 1: Programs -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h4 class="text-xl font-semibold mb-2">1. Programas</h4>
+                    <p class="text-gray-600 mb-4 text-sm">Sube el archivo <code>programs_clean.csv</code> para crear o
+                        actualizar el catálogo de programas.</p>
+                    <form action="{{ url_for('admin.import_programs') }}" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <div class="mb-4">
+                            <input type="file" name="file" accept=".csv" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-50 file:text-blue-700
+                        hover:file:bg-blue-100" required>
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            Importar Programas
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 2: Agendas -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h4 class="text-xl font-semibold mb-2">2. Agendas (Leads)</h4>
+                    <p class="text-gray-600 mb-4 text-sm">Sube el archivo <code>agendas_clean.csv</code>. Crea leads con
+                        fecha de registro correcta.</p>
+                    <form action="{{ url_for('admin.import_agendas') }}" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <div class="mb-4">
+                            <input type="file" name="file" accept=".csv" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-indigo-50 file:text-indigo-700
+                        hover:file:bg-indigo-100" required>
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">
+                            Importar Agendas
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 3: Users -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h4 class="text-xl font-semibold mb-2">3. Usuarios</h4>
+                    <p class="text-gray-600 mb-4 text-sm">Sube el archivo <code>users_clean.csv</code>. Crea usuarios y
+                        perfiles. Actualiza si ya existen por email.</p>
+                    <form action="{{ url_for('admin.import_users') }}" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <div class="mb-4">
+                            <input type="file" name="file" accept=".csv" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-green-50 file:text-green-700
+                        hover:file:bg-green-100" required>
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                            Importar Usuarios
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 4: Payments -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h4 class="text-xl font-semibold mb-2">4. Pagos</h4>
+                    <p class="text-gray-600 mb-4 text-sm">Sube el archivo <code>payments_clean.csv</code>. Crea
+                        enrollments y
+                        registros de pago.</p>
+                    <form action="{{ url_for('admin.import_payments') }}" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <div class="mb-4">
+                            <input type="file" name="file" accept=".csv" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-purple-50 file:text-purple-700
+                        hover:file:bg-purple-100" required>
+                        </div>
+                        <button type="submit"
+                            class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded">
+                            Importar Pagos
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <div class="flex">
+                    <div class="ml-3">
+                        <p class="text-sm text-yellow-700">
+                            <strong>Nota Importante:</strong> Sigue el orden estricto (1 -> 2 -> 3 -> 4) para evitar
+                            errores
+                            de
+                            integridad referencia.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

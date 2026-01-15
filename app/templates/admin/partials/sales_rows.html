@@ -1,0 +1,52 @@
+{% for p in payments %}
+<tr class="hover:bg-gray-50 transition">
+    <td class="px-6 py-4 text-sm text-gray-900">{{ p.date.strftime('%Y-%m-%d') }}</td>
+    <td class="px-6 py-4">
+        <div class="font-medium text-gray-900">{{ p.enrollment.student.username }}</div>
+        <div class="text-xs text-gray-500">{{ p.enrollment.student.email }}</div>
+    </td>
+    <td class="px-6 py-4 text-sm text-gray-600">{{ p.enrollment.program.name }}</td>
+    <td class="px-6 py-4 text-sm font-bold text-green-600 text-right">${{ "{:,.2f}".format(p.amount) }}</td>
+    <td class="px-6 py-4 text-sm text-gray-600">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+            {% if p.payment_type == 'full' %}bg-green-100 text-green-800
+            {% elif p.payment_type == 'down_payment' %}bg-blue-100 text-blue-800
+            {% elif p.payment_type == 'installment' %}bg-yellow-100 text-yellow-800
+            {% elif p.payment_type == 'deposit' %}bg-gray-100 text-gray-800
+            {% else %}bg-gray-100 text-gray-800{% endif %}">
+
+            {% if p.payment_type == 'full' %}Completo
+            {% elif p.payment_type == 'down_payment' %}Primer Pago
+            {% elif p.payment_type == 'installment' %}Cuota
+            {% elif p.payment_type == 'deposit' %}Seña
+            {% else %}{{ p.payment_type }}{% endif %}
+        </span>
+    </td>
+    <td class="px-6 py-4 text-sm text-gray-600">
+        {{ p.method.name if p.method else '-' }}
+    </td>
+    <td class="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
+        <div class="flex items-center justify-end gap-3">
+            <!-- Edit -->
+            <a href="{{ url_for('admin.edit_payment', id=p.id, next=request.url) }}"
+                class="text-blue-600 hover:text-blue-900" title="Editar Pago">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+            </a>
+            <!-- Delete -->
+            <a href="{{ url_for('admin.delete_payment', id=p.id, next=request.url) }}"
+                class="text-red-600 hover:text-red-900" title="Eliminar"
+                onclick="return confirm('¿Eliminar este pago permanentemente?');">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </a>
+        </div>
+    </td>
+</tr>
+{% endfor %}

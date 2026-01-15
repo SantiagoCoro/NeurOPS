@@ -1,10 +1,11 @@
-from app import create_app, db
-from app.models import User
 import sys
 import os
 
 # Add parent dir to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app import create_app, db
+from app.models import User
 
 app = create_app()
 

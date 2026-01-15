@@ -14,6 +14,10 @@ login.login_message = 'Por favor inicia sesión para acceder a esta página.'
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # Enable CSRF Protection globally
+    from flask_wtf.csrf import CSRFProtect
+    csrf = CSRFProtect(app)
 
     # Init extensions with app
     db.init_app(app)

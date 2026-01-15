@@ -6,102 +6,224 @@
 
     <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
 
-        <!-- Unified Header & Filters -->
-        {% with title='Gestión de Ventas', description='Historial de pagos completados.', search=search,
-        start_date=start_date, end_date=end_date %}
-        {% include "includes/admin_unified_filters.html" %}
-        {% endwith %}
-
-        <!-- Stats Overview -->
+        <!-- KPI Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <!-- Cash Collected (Highlight) -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
-                <div class="text-sm font-medium text-gray-500 uppercase tracking-wide">Cash Collected (Neto)</div>
-                <div class="mt-2 text-3xl font-bold text-gray-900">${{ "{:,.2f}".format(cash_collected) }}</div>
-                <div class="text-xs text-gray-400 mt-1">Ingresos menos comisiones</div>
+            <!-- Total Sales Count -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <i
+                        class="fas fa-shopping-cart text-6xl text-blue-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Total Ventas</span>
+                <span class="text-3xl font-bold text-gray-800 z-10">{{ total_sales_count }}</span>
+                <div class="mt-2 text-xs text-blue-500 font-medium bg-blue-50 px-2 py-1 rounded-full z-10">
+                    <i class="fas fa-receipt mr-1"></i>Registros
+                </div>
             </div>
 
             <!-- Gross Revenue -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
-                <div class="text-xs font-semibold text-gray-400 uppercase">Ingresos Brutos</div>
-                <div class="mt-1 text-2xl font-bold text-gray-700">${{ "{:,.2f}".format(total_revenue) }}</div>
+            <div
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <i
+                        class="fas fa-dollar-sign text-6xl text-gray-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Ingresos Brutos</span>
+                <span class="text-3xl font-bold text-gray-800 z-10 text-center">${{ "{:,.2f}".format(total_revenue)
+                    }}</span>
             </div>
 
-            <!-- Commission -->
-            <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
-                <div class="text-xs font-semibold text-gray-400 uppercase">Comisiones Pasarela</div>
-                <div class="mt-1 text-2xl font-bold text-red-400">-${{ "{:,.2f}".format(total_commission) }}</div>
+            <!-- Cash Collected -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <i
+                        class="fas fa-wallet text-6xl text-green-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Cash Collected
+                    (Neto)</span>
+                <span class="text-3xl font-bold text-gray-900 z-10 text-center">${{ "{:,.2f}".format(cash_collected)
+                    }}</span>
+                <div class="mt-2 text-xs text-gray-400 font-medium z-10">Ingresos - Comisiones</div>
             </div>
+        </div>
+
+        <!-- Filters & Actions -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+            <form method="GET" action="{{ url_for('admin.sales_list') }}"
+                class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end" id="filterForm">
+
+                <!-- Search -->
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Buscar Cliente</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </span>
+                        <input type="text" name="search" value="{{ search }}"
+                            class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-transparent transition-shadow"
+                            placeholder="Nombre, Email...">
+                    </div>
+                </div>
+
+                <!-- Program Filter -->
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Programa</label>
+                    <select name="program_id" onchange="document.getElementById('filterForm').submit()"
+                        class="block w-full pl-2 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow bg-white">
+                        <option value="">Todos</option>
+                        {% for prog in all_programs %}
+                        <option value="{{ prog.id }}" {% if program_id|string==prog.id|string %}selected{% endif %}>{{
+                            prog.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Payment Type Filter -->
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tipo de Pago</label>
+                    <select name="payment_type" onchange="document.getElementById('filterForm').submit()"
+                        class="block w-full pl-2 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow bg-white">
+                        <option value="">Todos</option>
+                        {% for code, label in payment_types %}
+                        <option value="{{ code }}" {% if payment_type==code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Method Filter -->
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Método</label>
+                    <select name="method_id" onchange="document.getElementById('filterForm').submit()"
+                        class="block w-full pl-2 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow bg-white">
+                        <option value="">Todos</option>
+                        {% for m in all_methods %}
+                        <option value="{{ m.id }}" {% if method_id|string==m.id|string %}selected{% endif %}>{{ m.name
+                            }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Date Range -->
+                <div class="md:col-span-3 grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+                        <input type="date" name="start_date" value="{{ start_date }}"
+                            onchange="document.getElementById('filterForm').submit()"
+                            class="block w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+                        <input type="date" name="end_date" value="{{ end_date }}"
+                            onchange="document.getElementById('filterForm').submit()"
+                            class="block w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                </div>
+            </form>
         </div>
 
         <!-- Sales Table -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {% if payments %}
-            <table class="w-full text-left">
-                <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
-                    <tr>
-                        <th class="px-6 py-3 font-semibold">Fecha</th>
-                        <th class="px-6 py-3 font-semibold">Cliente</th>
-                        <th class="px-6 py-3 font-semibold">Programa</th>
-                        <th class="px-6 py-3 font-semibold text-right">Monto</th>
-                        <th class="px-6 py-3 font-semibold">Tipo</th>
-                        <th class="px-6 py-3 font-semibold">Método</th>
-                        <th class="px-6 py-3 font-semibold text-right">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    {% for p in payments %}
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ p.date.strftime('%Y-%m-%d') }}</td>
-                        <td class="px-6 py-4">
-                            <div class="font-medium text-gray-900">{{ p.enrollment.student.username }}</div>
-                            <div class="text-xs text-gray-500">{{ p.enrollment.student.email }}</div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600">{{ p.enrollment.program.name }}</td>
-                        <td class="px-6 py-4 text-sm font-bold text-green-600 text-right">${{ "{:,.2f}".format(p.amount)
-                            }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">
-                            <span
-                                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {{ p.payment_type_label }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600">
-                            {{ p.method.name if p.method else '-' }}
-                        </td>
-                        <td class="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
-                            <div class="flex items-center justify-end gap-3">
-                                <!-- Edit -->
-                                <a href="{{ url_for('admin.edit_payment', id=p.id, next=request.url) }}"
-                                    class="text-blue-600 hover:text-blue-900" title="Editar Pago">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                </a>
-                                <!-- Delete -->
-                                <a href="{{ url_for('admin.delete_payment', id=p.id, next=request.url) }}"
-                                    class="text-red-600 hover:text-red-900" title="Eliminar"
-                                    onclick="return confirm('¿Eliminar este pago permanentemente?');">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
-                                        viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                </a>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="p-12 text-center text-gray-500">
-                No se encontraron ventas en este periodo.
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
+                        <tr>
+                            <th class="px-6 py-3 font-semibold tracking-wider">Fecha</th>
+                            <th class="px-6 py-3 font-semibold tracking-wider">Cliente</th>
+                            <th class="px-6 py-3 font-semibold tracking-wider">Programa</th>
+                            <th class="px-6 py-3 font-semibold tracking-wider text-right">Monto</th>
+                            <th class="px-6 py-3 font-semibold tracking-wider">Tipo</th>
+                            <th class="px-6 py-3 font-semibold tracking-wider">Método</th>
+                            <th class="px-6 py-3 font-semibold tracking-wider text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 bg-white">
+                        {% include "admin/partials/sales_rows.html" %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if not payments %}
+            <div class="p-12 text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                    <i class="fas fa-search text-gray-400 text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900">No se encontraron ventas</h3>
+                <p class="text-gray-500 mt-1">Intenta ajustar los filtros de búsqueda.</p>
+                <a href="{{ url_for('admin.sales_list') }}"
+                    class="mt-4 inline-block text-indigo-600 font-medium hover:underline">Limpiar filtros</a>
             </div>
             {% endif %}
         </div>
+
+        <!-- Pagination Load More -->
+        <div class="text-center pb-8">
+            {% if pagination.has_next %}
+            <button id="loadMoreBtn"
+                class="bg-white border border-gray-300 text-gray-700 px-6 py-2 rounded-full font-medium shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <i class="fas fa-chevron-down mr-2 text-xs"></i>Cargar 50 ventas más
+            </button>
+            {% endif %}
+            <div id="loadingMore" class="hidden text-indigo-600 font-medium mt-2">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Cargando ventas...
+            </div>
+        </div>
+
+        <script>
+            let currentPage = {{ pagination.page }};
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            const loadingMore = document.getElementById('loadingMore');
+            const tableBody = document.querySelector('tbody');
+
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function () {
+                    currentPage++;
+                    loadMoreBtn.classList.add('hidden');
+                    loadingMore.classList.remove('hidden');
+
+                    // Preserve current search parameters
+                    const urlParams = new URLSearchParams(window.location.search);
+                    urlParams.set('page', currentPage);
+                    urlParams.set('load_more', '1');
+
+                    fetch(`{{ url_for('admin.sales_list') }}?${urlParams.toString()}`)
+                        .then(response => response.text())
+                        .then(html => {
+                            if (html.trim()) {
+                                // Append new rows
+                                tableBody.insertAdjacentHTML('beforeend', html);
+
+                                // Since we don't know if there is a 'next' page from just the fragment,
+                                // we might assume standard behaviour: if fragment is empty, stop. 
+                                // But pagination object is server side. 
+                                // Ideally the fragment or response should indicate if more available.
+                                // For simple approach: we assume if we got rows, we *might* have more, 
+                                // BUT usually the button logic relies on server state. 
+                                // If we assume infinite scroll via button until empty.
+                                // NOTE: The button availability was rendered server-side for page 1.
+                                // Updating the button visibility for page 3 needs client logic or a returned flag.
+                                // For now, we will simply SHOW the button again if we got content. 
+                                // If the user clicks and gets nothing next time, we hide it.
+                                // Better approach: check if number of rows returned < 50?
+                                // Let's keep it simple: Show button again.
+
+                                loadMoreBtn.classList.remove('hidden');
+                            } else {
+                                loadMoreBtn.classList.add('hidden');
+                            }
+                            loadingMore.classList.add('hidden');
+                        })
+                        .catch(err => {
+                            console.error('Error executing load more', err);
+                            loadingMore.classList.add('hidden');
+                            loadMoreBtn.classList.remove('hidden');
+                            alert('Error al cargar más ventas');
+                        });
+                });
+            }
+        </script>
+
     </main>
 </div>
 {% endblock %}

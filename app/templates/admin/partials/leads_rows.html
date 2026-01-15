@@ -1,0 +1,120 @@
+{% for lead in leads %}
+<tr class="hover:bg-gray-50 transition">
+    <td class="px-6 py-4 text-sm text-gray-500 font-mono">
+        {{ start_index + loop.index }}
+    </td>
+    <td class="px-6 py-4">
+        <div class="font-medium text-gray-900">{{ lead.username }}</div>
+        <div class="text-xs text-gray-500 mt-1 space-y-0.5">
+            <div class="flex items-center gap-1">
+                <i class="far fa-envelope w-4"></i> {{ lead.email }}
+            </div>
+            {% if lead.lead_profile %}
+            {% if lead.lead_profile.phone %}
+            <div class="flex items-center gap-1">
+                <i class="fas fa-phone w-4"></i> {{ lead.lead_profile.phone }}
+            </div>
+            {% endif %}
+            {% if lead.lead_profile.instagram %}
+            <div class="flex items-center gap-1">
+                <i class="fab fa-instagram w-4"></i> {{ lead.lead_profile.instagram }}
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </td>
+    <td class="px-6 py-4">
+        {% if lead.enrollments.count() > 0 %}
+        {% for enrollment in lead.enrollments %}
+        <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-semibold block mb-1">
+            {{ enrollment.program.name }}
+        </span>
+        {% endfor %}
+        {% else %}
+        <span class="text-gray-400 text-xs">-</span>
+        {% endif %}
+    </td>
+
+
+    <!-- Financial Info -->
+    <td class="px-6 py-4 text-right text-sm">
+        <span class="text-green-600 font-bold">${{ "{:,.0f}".format(lead.total_lifetime_paid)
+            }}</span>
+    </td>
+    <td class="px-6 py-4 text-right text-sm">
+        {% if lead.current_active_debt > 0 %}
+        <span class="text-red-500 font-bold bg-red-50 px-2 py-1 rounded">${{
+            "{:,.0f}".format(lead.current_active_debt) }}</span>
+        {% else %}
+        <span class="text-gray-400">-</span>
+        {% endif %}
+    </td>
+    <!-- Status Selection (Editable) -->
+    <td class="px-6 py-4">
+        {% if lead.lead_profile %}
+        <form action="{{ url_for('admin.update_lead_quick', id=lead.id) }}" method="POST">
+            <select name="status" onchange="this.form.submit()" class="text-xs rounded-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-6 font-bold cursor-pointer hover:bg-opacity-80
+                {% if lead.lead_profile.status == 'new' %}bg-gray-100 text-gray-600
+                {% elif lead.lead_profile.status == 'pending' %}bg-yellow-100 text-yellow-700
+                {% elif lead.lead_profile.status == 'completed' %}bg-green-100 text-green-700
+                {% elif lead.lead_profile.status == 'renewed' %}bg-purple-100 text-purple-700
+                {% elif lead.lead_profile.status == 'canceled' %}bg-red-100 text-red-700
+                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                <option value="new" {% if lead.lead_profile.status=='new' %}selected{% endif %}>
+                    Nuevo</option>
+                <option value="pending" {% if lead.lead_profile.status=='pending' %}selected{% endif %}>Pendiente
+                </option>
+                <option value="completed" {% if lead.lead_profile.status=='completed' %}selected{% endif %}>Completado
+                </option>
+                <option value="renewed" {% if lead.lead_profile.status=='renewed' %}selected{% endif %}>Renovado
+                </option>
+                <option value="canceled" {% if lead.lead_profile.status=='canceled' %}selected{% endif %}>Cancelado
+                </option>
+            </select>
+        </form>
+        {% else %}
+        <span class="text-xs text-gray-400">-</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-sm text-gray-500">
+        {{ lead.created_at.strftime('%Y-%m-%d %H:%M') }}
+    </td>
+    <td class="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
+        <div class="flex items-center justify-end gap-3">
+            <!-- View Profile -->
+            <a href="{{ url_for('admin.lead_profile', id=lead.id) }}" class="text-indigo-600 hover:text-indigo-900"
+                title="Ver Perfil">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </a>
+
+            <!-- Edit Client -->
+            <a href="{{ url_for('admin.edit_client', id=lead.id) }}" class="text-blue-600 hover:text-blue-900"
+                title="Editar Cliente">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+            </a>
+
+            {% if current_user.id != lead.id %}
+            <!-- Delete User -->
+            <a href="{{ url_for('admin.delete_user', id=lead.id) }}" class="text-red-600 hover:text-red-900"
+                title="Eliminar" onclick="return confirm('¿Estás seguro de eliminar este usuario?');">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </a>
+            {% endif %}
+        </div>
+    </td>
+</tr>
+{% endfor %}

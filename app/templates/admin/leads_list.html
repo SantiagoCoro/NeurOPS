@@ -5,15 +5,162 @@
     {% include "includes/admin_sidebar.html" %}
 
     <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
-        <!-- Unified Header & Filters -->
-        {% with title='Gestión de Clientes', description='Administra los leads y estudiantes registrados.',
-        search=search, start_date=start_date, end_date=end_date %}
-        {% include "includes/admin_unified_filters.html" %}
-        {% endwith %}
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <!-- Total Card -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <i
+                        class="fas fa-users text-6xl text-indigo-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Total Clientes</span>
+                <span class="text-3xl font-bold text-gray-800 z-10">{{ kpis.total }}</span>
+                <div class="mt-2 text-xs text-green-500 font-medium bg-green-50 px-2 py-1 rounded-full z-10">
+                    <i class="fas fa-check-circle mr-1"></i>Activos
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-1 hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between mb-3 border-b border-gray-50 pb-2">
+                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Estados</span>
+                    <i class="fas fa-chart-pie text-gray-300"></i>
+                </div>
+                <div class="space-y-2">
+                    {% for status, count in kpis.statuses.items() %}
+                    <div class="flex justify-between items-center text-sm group">
+                        <div class="flex items-center">
+                            <span class="w-2 h-2 rounded-full mr-2
+                                {% if status == 'completed' %}bg-green-400
+                                {% elif status == 'pending' %}bg-yellow-400
+                                {% elif status == 'renewed' %}bg-purple-400
+                                {% elif status == 'new' %}bg-blue-400
+                                {% else %}bg-gray-400{% endif %}"></span>
+                            <span class="capitalize text-gray-600 group-hover:text-gray-900 transition-colors">{{ status
+                                or 'Sin estado' }}</span>
+                        </div>
+                        <span class="font-bold text-gray-700">{{ count }}</span>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-xs text-gray-400 py-2">Sin datos</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Programs Card -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-2 hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between mb-3 border-b border-gray-50 pb-2">
+                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Inscripciones por
+                        Programa</span>
+                    <i class="fas fa-graduation-cap text-gray-300"></i>
+                </div>
+                <!-- Dynamic Grid for Programs -->
+                <div
+                    class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                    {% for prog, count in kpis.programs.items() %}
+                    <div
+                        class="flex justify-between items-center text-sm p-1 hover:bg-gray-50 rounded transition-colors">
+                        <span class="text-gray-600 truncate flex-1 min-w-0 mr-3" title="{{ prog }}">{{ prog }}</span>
+                        <span
+                            class="flex-shrink-0 font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs">{{
+                            count }}</span>
+                    </div>
+                    {% else %}
+                    <div class="col-span-2 text-center text-xs text-gray-400 py-4">Sin inscripciones</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtering and Search -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <form method="get" action="{{ url_for('admin.leads_list') }}" class="flex flex-wrap gap-4 items-end">
+
+                <!-- Search -->
+                <div class="flex-1 min-w-[200px]">
+                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span class="text-gray-500 sm:text-sm">
+                                <i class="fas fa-search"></i>
+                            </span>
+                        </div>
+                        <input type="text" name="search" id="search" value="{{ search }}"
+                            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                            placeholder="Nombre, Email...">
+                    </div>
+                </div>
+
+                <!-- Program Filter -->
+                <div class="w-40">
+                    <label for="program" class="block text-sm font-medium text-gray-700 mb-1">Programa</label>
+                    <select name="program" id="program"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="">Todos</option>
+                        {% for prog in all_programs %}
+                        <option value="{{ prog.id }}" {% if program_filter==prog.id|string %}selected{% endif %}>{{
+                            prog.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Status Filter -->
+                <div class="w-40">
+                    <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                    <select name="status" id="status"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="">Todos</option>
+                        {% for stat in all_statuses %}
+                        <option value="{{ stat }}" {% if status_filter==stat %}selected{% endif %}>{{ stat|capitalize }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Date Range -->
+                <div class="w-32">
+                    <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                    <input type="date" name="start_date" id="start_date" value="{{ start_date }}"
+                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                </div>
+                <div class="w-32">
+                    <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                    <input type="date" name="end_date" id="end_date" value="{{ end_date }}"
+                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                </div>
+
+                <!-- Sorting -->
+                <div class="w-48">
+                    <label for="sort_by" class="block text-sm font-medium text-gray-700 mb-1">Ordenar por</label>
+                    <select name="sort_by" id="sort_by"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="newest" {% if sort_by=='newest' %}selected{% endif %}>Más Recientes</option>
+                        <option value="oldest" {% if sort_by=='oldest' %}selected{% endif %}>Más Antiguos</option>
+                        <option value="a-z" {% if sort_by=='a-z' %}selected{% endif %}>Nombre (A-Z)</option>
+                        <option value="z-a" {% if sort_by=='z-a' %}selected{% endif %}>Nombre (Z-A)</option>
+                    </select>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-2 pb-0.5">
+                    <button type="submit"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Filtrar
+                    </button>
+                    <a href="{{ url_for('admin.leads_list') }}"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
 
         <div class="flex justify-end mb-4">
             <a href="{{ url_for('admin.add_manual_user') }}"
-                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-150 ease-in-out">
+                class="bg-green-600 hover:green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-150 ease-in-out">
                 <i class="fas fa-plus mr-2"></i>Agregar
             </a>
         </div>
@@ -22,11 +169,11 @@
             <table class="w-full text-left">
                 <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
                     <tr>
-                        <th class="px-6 py-3 font-semibold">Nombre</th>
-                        <th class="px-6 py-3 font-semibold">Email</th>
-                        <th class="px-6 py-3 font-semibold">Teléfono / Instagram</th>
+                        <th class="px-6 py-3 font-semibold">#</th>
+                        <th class="px-6 py-3 font-semibold">Info</th>
+                        <!-- Email & Phone columns merged into Info -->
                         <th class="px-6 py-3 font-semibold">Programa</th>
-                        <th class="px-6 py-3 font-semibold">Rol</th>
+                        <!-- Rol Column Removed -->
                         <th class="px-6 py-3 font-semibold text-right">Total Pagado</th>
                         <th class="px-6 py-3 font-semibold text-right">Deuda Activa</th>
                         <th class="px-6 py-3 font-semibold">Estado</th>
@@ -37,15 +184,28 @@
                 <tbody class="divide-y divide-gray-100">
                     {% for lead in leads %}
                     <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 font-medium text-gray-900">{{ lead.username }}</td>
-                        <td class="px-6 py-4 text-gray-600 text-sm">{{ lead.email }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">
-                            {% if lead.lead_profile %}
-                            <div><span class="font-bold">Tel:</span> {{ lead.lead_profile.phone or '-' }}</div>
-                            <div><span class="font-bold">IG:</span> {{ lead.lead_profile.instagram or '-' }}</div>
-                            {% else %}
-                            <span class="text-gray-400">Sin perfil</span>
-                            {% endif %}
+                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">
+                            {{ start_index + loop.index }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-900">{{ lead.username }}</div>
+                            <div class="text-xs text-gray-500 mt-1 space-y-0.5">
+                                <div class="flex items-center gap-1">
+                                    <i class="far fa-envelope w-4"></i> {{ lead.email }}
+                                </div>
+                                {% if lead.lead_profile %}
+                                {% if lead.lead_profile.phone %}
+                                <div class="flex items-center gap-1">
+                                    <i class="fas fa-phone w-4"></i> {{ lead.lead_profile.phone }}
+                                </div>
+                                {% endif %}
+                                {% if lead.lead_profile.instagram %}
+                                <div class="flex items-center gap-1">
+                                    <i class="fab fa-instagram w-4"></i> {{ lead.lead_profile.instagram }}
+                                </div>
+                                {% endif %}
+                                {% endif %}
+                            </div>
                         </td>
                         <td class="px-6 py-4">
                             {% if lead.enrollments.count() > 0 %}
@@ -58,27 +218,8 @@
                             <span class="text-gray-400 text-xs">-</span>
                             {% endif %}
                         </td>
-                        <!-- Role Display -->
-                        <td class="px-6 py-4">
-                            {% if lead.role == 'student' %}
-                            <span class="bg-blue-900 text-blue-300 py-1 px-2 rounded text-xs">Estudiante</span>
-                            {% elif lead.role == 'agenda' %}
-                            <span class="bg-purple-900 text-purple-300 py-1 px-2 rounded text-xs">Agenda</span>
-                            {% else %}
-                            <span class="bg-gray-700 text-gray-300 py-1 px-2 rounded text-xs">Lead</span>
-                            {% endif %}
-                        </td>
-                        <!-- Role Selection -->
-                        <td class="px-6 py-4">
-                            <form action="{{ url_for('admin.update_lead_quick', id=lead.id) }}" method="POST">
-                                <select name="role" onchange="this.form.submit()"
-                                    class="text-xs rounded-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-6
-                                    {% if lead.role == 'student' %}bg-green-50 text-green-700{% else %}bg-blue-50 text-blue-700{% endif %}">
-                                    <option value="lead" {% if lead.role=='lead' %}selected{% endif %}>Cliente</option>
-                                    <!-- Option Student removed per request -->
-                                </select>
-                            </form>
-                        </td>
+                        <!-- Rol Column Removed from Body -->
+
                         <!-- Financial Info -->
                         <td class="px-6 py-4 text-right text-sm">
                             <span class="text-green-600 font-bold">${{ "{:,.0f}".format(lead.total_lifetime_paid)
@@ -168,6 +309,61 @@
             <div class="p-8 text-center text-gray-500">No hay leads registrados aún.</div>
             {% endif %}
         </div>
+        <div class="mt-4 text-center">
+            {% if pagination.has_next %}
+            <button id="loadMoreBtn"
+                class="bg-indigo-600 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-indigo-700 transition">
+                Cargar 50 clientes más
+            </button>
+            {% endif %}
+            <div id="loadingMore" class="hidden text-gray-500 mt-2">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Cargando...
+            </div>
+        </div>
+
+        <script>
+            let currentPage = {{ pagination.page }};
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            const loadingMore = document.getElementById('loadingMore');
+            const tableBody = document.querySelector('tbody');
+
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function () {
+                    currentPage++;
+                    loadMoreBtn.classList.add('hidden');
+                    loadingMore.classList.remove('hidden');
+
+                    // Preserve current search parameters
+                    const urlParams = new URLSearchParams(window.location.search);
+                    urlParams.set('page', currentPage);
+                    urlParams.set('load_more', '1');
+
+                    fetch(`{{ url_for('admin.leads_list') }}?${urlParams.toString()}`)
+                        .then(response => response.text())
+                        .then(html => {
+                            if (html.trim()) {
+                                // Append new rows
+                                tableBody.insertAdjacentHTML('beforeend', html);
+
+                                // Show button again if we got content (assuming there might be more)
+                                // A more robust check could be if we got fewer rows than per_page
+                                // For now, we keep showing it unless explicitly empty
+                                loadMoreBtn.classList.remove('hidden');
+                            } else {
+                                // No more content
+                                loadMoreBtn.classList.add('hidden'); // Ensure it stays hidden
+                            }
+                            loadingMore.classList.add('hidden');
+                        })
+                        .catch(err => {
+                            console.error('Error executing load more', err);
+                            loadingMore.classList.add('hidden');
+                            loadMoreBtn.classList.remove('hidden'); // Allow retry
+                            alert('Error al cargar más clientes');
+                        });
+                });
+            }
+        </script>
     </main>
 </div>
 {% endblock %}

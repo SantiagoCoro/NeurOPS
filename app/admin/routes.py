@@ -343,9 +343,19 @@ def leads_list():
     search = request.args.get('search', '')
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
+    program_filter = request.args.get('program')
+    status_filter = request.args.get('status')
+    sort_by = request.args.get('sort_by', 'newest') # newest, oldest, a-z, z-a
 
     # Base query for leads/students/agendas
     query = User.query.filter(User.role.in_(['lead', 'student', 'agenda']))
+
+    # Joins for filtering
+    if status_filter:
+        query = query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    
+    if program_filter:
+        query = query.join(Enrollment, Enrollment.student_id == User.id).filter(Enrollment.program_id == program_filter)
 
     # Date Filter
     if start_date_str:
@@ -353,7 +363,7 @@ def leads_list():
         query = query.filter(User.created_at >= start_date)
     
     if end_date_str:
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1) # Include full end day
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
         query = query.filter(User.created_at < end_date)
 
     # Search (Name or Email)
@@ -361,9 +371,77 @@ def leads_list():
         search_term = f"%{search}%"
         query = query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
 
-    leads = query.order_by(User.created_at.desc()).all()
+    # Sorting
+    if sort_by == 'oldest':
+        query = query.order_by(User.created_at.asc())
+    elif sort_by == 'a-z':
+        query = query.order_by(User.username.asc())
+    elif sort_by == 'z-a':
+        query = query.order_by(User.username.desc())
+    else: # newest (default)
+        query = query.order_by(User.created_at.desc())
+
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    leads = pagination.items
+
+    start_index = (page -1) * per_page
     
-    return render_template('admin/leads_list.html', leads=leads, search=search, start_date=start_date_str, end_date=end_date_str)
+    # KPI Calculations (Simplified query to avoid complex rebuilding)
+    # Re-build base query for KPIs
+    kpi_query = User.query.filter(User.role.in_(['lead', 'student', 'agenda']))
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        kpi_query = kpi_query.filter(User.created_at >= start_date)
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
+        kpi_query = kpi_query.filter(User.created_at < end_date)
+    if search:
+        search_term = f"%{search}%"
+        kpi_query = kpi_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+        
+    total_users = kpi_query.count()
+    
+    # Statuses KPI
+    status_counts = db.session.query(LeadProfile.status, db.func.count(User.id)).select_from(User).join(LeadProfile).filter(User.role.in_(['lead', 'student', 'agenda']))
+    if start_date_str: status_counts = status_counts.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: status_counts = status_counts.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    status_counts = status_counts.group_by(LeadProfile.status).all()
+
+    # Programs KPI
+    program_counts = db.session.query(Program.name, db.func.count(Enrollment.id)).select_from(User).join(Enrollment, Enrollment.student_id == User.id).join(Program).filter(User.role.in_(['lead', 'student', 'agenda']))
+    if start_date_str: program_counts = program_counts.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: program_counts = program_counts.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    program_counts = program_counts.group_by(Program.name).all()
+
+    kpis = {
+        'total': total_users,
+        'statuses': dict(status_counts),
+        'programs': dict(program_counts)
+    }
+    
+    # Context for filters
+    all_programs = Program.query.order_by(Program.name).all()
+    # Unique statuses for dropdown
+    all_statuses = db.session.query(LeadProfile.status).distinct().filter(LeadProfile.status != None).all()
+    all_statuses = [s[0] for s in all_statuses]
+
+    return render_template('admin/leads_list.html', 
+                           title='Gestión de Clientes', 
+                           leads=leads, 
+                           pagination=pagination, 
+                           search=search, 
+                           start_date=start_date_str, 
+                           end_date=end_date_str,
+                           program_filter=program_filter,
+                           status_filter=status_filter,
+                           sort_by=sort_by,
+                           kpis=kpis,
+                           start_index=start_index,
+                           all_programs=all_programs,
+                           all_statuses=all_statuses)
 
 @bp.route('/users/add-manual', methods=['GET', 'POST'])
 @admin_required
@@ -1232,19 +1310,23 @@ def appointments_list():
 @bp.route('/sales')
 @admin_required
 def sales_list():
-    search = request.args.get('search')
-    today = date.today()
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-
-    if start_date:
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+    # Filters
+    search = request.args.get('search', '')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    program_id = request.args.get('program_id')
+    method_id = request.args.get('method_id')
+    payment_type = request.args.get('payment_type')
     
-    if end_date:
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    is_load_more = request.args.get('load_more')
 
+    # Base Query
     query = Payment.query.filter(Payment.status == 'completed').join(Enrollment).join(User, Enrollment.student_id == User.id)
 
+    # Apply Filters
     if search:
         term = f"%{search}%"
         query = query.filter(
@@ -1254,37 +1336,104 @@ def sales_list():
             )
         )
     
-    if start_date:
-        start_dt = datetime.combine(start_date, time.min)
-        query = query.filter(Payment.date >= start_dt)
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        query = query.filter(Payment.date >= datetime.combine(start_date, time.min))
         
-    if end_date:
-        end_dt = datetime.combine(end_date, time.max)
-        query = query.filter(Payment.date <= end_dt)
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        query = query.filter(Payment.date <= datetime.combine(end_date, time.max))
+
+    if program_id:
+        query = query.filter(Enrollment.program_id == program_id)
+        
+    if method_id:
+        query = query.filter(Payment.payment_method_id == method_id)
+
+    if payment_type:
+        query = query.filter(Payment.payment_type == payment_type)
     
+    # Sorting
     query = query.order_by(Payment.date.desc())
     
-    payments = query.all()
+    # KPIs (Calculate on filtered data before pagination)
+    # We can use aggregations for performance
+    # Total Revenue
+    kpi_revenue = db.session.query(db.func.sum(Payment.amount)).select_from(Payment).join(Enrollment).join(User, Enrollment.student_id == User.id).filter(Payment.status == 'completed')
+    if search:
+        kpi_revenue = kpi_revenue.filter(db.or_(User.username.ilike(term), User.email.ilike(term)))
+    if start_date_str:
+        kpi_revenue = kpi_revenue.filter(Payment.date >= datetime.combine(start_date, time.min))
+    if end_date_str:
+        kpi_revenue = kpi_revenue.filter(Payment.date <= datetime.combine(end_date, time.max))
+    if program_id: kpi_revenue = kpi_revenue.filter(Enrollment.program_id == program_id)
+    if method_id: kpi_revenue = kpi_revenue.filter(Payment.payment_method_id == method_id)
+    if payment_type: kpi_revenue = kpi_revenue.filter(Payment.payment_type == payment_type)
     
-    total_revenue = 0
+    total_revenue = kpi_revenue.scalar() or 0
+    total_sales_count = kpi_revenue.with_entities(db.func.count(Payment.id)).scalar() or 0
+
+    # Execute Pagination
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    payments = pagination.items
+    
+    # Calculate Commission/Cash for current view or total? 
+    # Usually KPIs should reflect total of filters.
+    # Commission calculation is complex (per row). 
+    # Let's approximate or just summing up for "Cash Collected" card is expensive if we do it for ALL rows in Python.
+    # We can try to do it via SQL if Commission logic is simple?
+    # Commission = amount * (percent/100) + fixed.
+    # SQL: sum(amount * (percent/100.0) + fixed)
+    # Need to join PaymentMethod.
+    
     total_commission = 0
+    # SQL optimized commission calc
+    comm_query = db.session.query(
+        db.func.sum(
+            (Payment.amount * (PaymentMethod.commission_percent / 100.0)) + PaymentMethod.commission_fixed
+        )
+    ).select_from(Payment).join(PaymentMethod).join(Enrollment).join(User, Enrollment.student_id == User.id).filter(Payment.status == 'completed')
     
-    for p in payments:
-        total_revenue += p.amount
-        if p.method:
-            comm = (p.amount * (p.method.commission_percent / 100)) + p.method.commission_fixed
-            total_commission += comm
-            
+    # Apply same filters to comm_query
+    if search: comm_query = comm_query.filter(db.or_(User.username.ilike(term), User.email.ilike(term)))
+    if start_date_str: comm_query = comm_query.filter(Payment.date >= datetime.combine(start_date, time.min))
+    if end_date_str: comm_query = comm_query.filter(Payment.date <= datetime.combine(end_date, time.max))
+    if program_id: comm_query = comm_query.filter(Enrollment.program_id == program_id)
+    if method_id: comm_query = comm_query.filter(Payment.payment_method_id == method_id)
+    if payment_type: comm_query = comm_query.filter(Payment.payment_type == payment_type)
+    
+    total_commission = comm_query.scalar() or 0
     cash_collected = total_revenue - total_commission
+
+    # Context Data
+    all_programs = Program.query.order_by(Program.name).all()
+    all_methods = PaymentMethod.query.filter_by(is_active=True).all()
+    payment_types = [
+        ('full', 'Pago Completo'),
+        ('down_payment', 'Primer Pago'),
+        ('installment', 'Cuota'),
+        ('deposit', 'Seña')
+    ]
+
+    if is_load_more:
+        return render_template('admin/partials/sales_rows.html', payments=payments)
     
     return render_template('admin/sales_list.html',
                            payments=payments,
+                           pagination=pagination,
                            search=search,
-                           start_date=start_date,
-                           end_date=end_date,
+                           start_date=start_date_str,
+                           end_date=end_date_str,
+                           program_id=program_id,
+                           method_id=method_id,
+                           payment_type=payment_type,
                            total_revenue=total_revenue,
                            total_commission=total_commission,
-                           cash_collected=cash_collected)
+                           cash_collected=cash_collected,
+                           total_sales_count=total_sales_count,
+                           all_programs=all_programs,
+                           all_methods=all_methods,
+                           payment_types=payment_types)
 
 @bp.route('/appointments/delete/<int:id>')
 @admin_required
