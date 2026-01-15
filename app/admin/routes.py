@@ -142,8 +142,12 @@ def dashboard():
     # Top 5 Debtors (Filtered by Period Cohort)
     top_debtors = sorted(debtors, key=lambda x: x['debt'], reverse=True)[:10]
 
-    # 3. Global Stats (Count only)
-    leads_count = User.query.filter_by(role='lead').count()
+    # 3. Global Stats (Count only) -> Now Period Based
+    leads_count = User.query.filter(
+        User.role == 'lead',
+        User.created_at >= start_dt,
+        User.created_at <= end_dt
+    ).count()
     
     # 4. Closing Rate This Month (or Selected Period)
     # This might also need to ideally be cohort based? (Leads from this month vs Sales from THIS MONTH's leads)
@@ -196,10 +200,10 @@ def dashboard():
     daily_revenue_values = list(daily_data.values())
     
     # 7. Chart Data: Sales by Program (This Month - Sales Volume)
-    # Using 'total_agreed' from Enrollments this month
-    programs_data = db.session.query(Program.name, db.func.sum(Enrollment.total_agreed)).join(Enrollment).filter(
-        Enrollment.enrollment_date >= start_dt,
-        Enrollment.enrollment_date <= end_dt
+    # Using 'total_agreed' from Enrollments of users registered this month (Cohort)
+    programs_data = db.session.query(Program.name, db.func.sum(Enrollment.total_agreed)).select_from(User).join(Enrollment, Enrollment.student_id == User.id).join(Program).filter(
+        User.created_at >= start_dt,
+        User.created_at <= end_dt
     ).group_by(Program.name).all()
     
     prog_labels = [p[0] for p in programs_data]
@@ -220,14 +224,14 @@ def dashboard():
         status_labels.append(label.capitalize())
         status_values.append(s_count)
         
-    # 9. Chart Data: Sales by Payment Method (This Month)
-    # Group payments by payment method name
+    # 9. Chart Data: Sales by Payment Method (Cohort - Lifetime Payments)
+    # Group payments by payment method name for users registered in period
     methods_data = db.session.query(
         PaymentMethod.name, 
         db.func.sum(Payment.amount)
-    ).join(Payment).filter(
-        Payment.date >= start_dt,
-        Payment.date <= end_dt,
+    ).join(Payment).join(Enrollment).join(User, Enrollment.student_id == User.id).filter(
+        User.created_at >= start_dt,
+        User.created_at <= end_dt,
         Payment.status == 'completed'
     ).group_by(PaymentMethod.name).all()
     
