@@ -458,10 +458,67 @@ def leads_list():
     if end_date_str: program_counts = program_counts.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
     program_counts = program_counts.group_by(Program.name).all()
 
+    # --- Financial KPIs (Filtered) ---
+    # Cash Collected (Sum of completed payments for filtered users)
+    # We need to re-apply filters to Payment query or join User
+    fin_query = db.session.query(db.func.sum(Payment.amount)).select_from(User).join(Enrollment, Enrollment.student_id == User.id).join(Payment).filter(Payment.status == 'completed')
+    if start_date_str: fin_query = fin_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: fin_query = fin_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: fin_query = fin_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if status_filter: fin_query = fin_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if program_filter: fin_query = fin_query.filter(Enrollment.program_id == program_filter)
+    
+    total_revenue = fin_query.scalar() or 0.0
+
+    # Calculate Commissions (payment method fees) for filtered payments
+    comm_query = db.session.query(
+        db.func.sum(
+            (Payment.amount * (PaymentMethod.commission_percent / 100.0)) + PaymentMethod.commission_fixed
+        )
+    ).select_from(User).join(Enrollment, Enrollment.student_id == User.id).join(Payment).join(PaymentMethod).filter(Payment.status == 'completed')
+    
+    # Apply same filters to comm_query
+    if start_date_str: comm_query = comm_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: comm_query = comm_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: comm_query = comm_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if status_filter: comm_query = comm_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if program_filter: comm_query = comm_query.filter(Enrollment.program_id == program_filter)
+    
+    total_commission = comm_query.scalar() or 0.0
+    cash_collected = total_revenue - total_commission
+
+    # Total Debt (Active enrollments only) - Approximated via Python for complexity reasons or simplified SQL
+    # SQL Approach: Sum(Agreed) - Sum(Paid) for active enrollments of filtered users
+    # Note: This is an approximation if we have partial payments or complex logic, but aligned with models.py
+    # For robust debt calculation we might iterate the current page or limit, but user wants TOTAL for filter.
+    # Let's try a hybrid SQL approach
+    
+    # 1. Get functional enrollment IDs for filter
+    enr_query = db.session.query(Enrollment).join(User, Enrollment.student_id == User.id).filter(Enrollment.status == 'active')
+    if start_date_str: enr_query = enr_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: enr_query = enr_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: enr_query = enr_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if status_filter: enr_query = enr_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if program_filter: enr_query = enr_query.filter(Enrollment.program_id == program_filter)
+    
+    active_enrollments = enr_query.all()
+    total_debt = 0.0
+    for enr in active_enrollments:
+        # Reuse model logic for consistency
+        paid = enr.total_paid
+        agreed = enr.total_agreed if enr.total_agreed is not None else (enr.program.price if enr.program else 0.0)
+        debt = agreed - paid
+        if debt > 0:
+            total_debt += debt
+
     kpis = {
         'total': total_users,
         'statuses': dict(status_counts),
-        'programs': dict(program_counts)
+        'programs': dict(program_counts),
+        'revenue': total_revenue, # Gross
+        'debt': total_debt,
+        'commission': total_commission,
+        'cash_collected': cash_collected # Net
     }
     
     # Context for filters

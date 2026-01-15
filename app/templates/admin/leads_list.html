@@ -6,70 +6,101 @@
 
     <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
         <!-- KPI Cards -->
+        <!-- KPI Cards -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <!-- Total Card -->
+            <!-- Total Card (Small) -->
             <div
-                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
-                <div class="absolute top-0 right-0 p-4 opacity-10">
+                class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-2 opacity-10">
                     <i
-                        class="fas fa-users text-6xl text-indigo-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                        class="fas fa-users text-5xl text-indigo-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
                 </div>
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Total Clientes</span>
-                <span class="text-3xl font-bold text-gray-800 z-10">{{ kpis.total }}</span>
-                <div class="mt-2 text-xs text-green-500 font-medium bg-green-50 px-2 py-1 rounded-full z-10">
-                    <i class="fas fa-check-circle mr-1"></i>Activos
+                <span class="text-2xl font-bold text-gray-800 z-10">{{ kpis.total }}</span>
+                <div class="mt-1 text-[10px] text-green-500 font-medium bg-green-50 px-2 py-0.5 rounded-full z-10">
+                    <i class="fas fa-check-circle mr-1"></i>Filtrados
                 </div>
             </div>
 
-            <!-- Status Card -->
+            <!-- Cash Collect Card -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-2 opacity-10">
+                    <i
+                        class="fas fa-dollar-sign text-5xl text-green-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Cash Collect
+                    (Neto)</span>
+                <span class="text-2xl font-bold text-gray-900 z-10 text-center">${{
+                    "{:,.0f}".format(kpis.cash_collected) }}</span>
+                <div class="mt-1 text-[10px] text-gray-500 font-medium z-10">
+                    <span title="Ingresos Brutos">Ing.: ${{ "{:,.0f}".format(kpis.revenue) }}</span>
+                    <span class="mx-1">|</span>
+                    <span title="Comisiones" class="text-red-400">Com.: -${{ "{:,.0f}".format(kpis.commission) }}</span>
+                </div>
+            </div>
+
+            <!-- Debt Card -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 right-0 p-2 opacity-10">
+                    <i
+                        class="fas fa-hand-holding-usd text-5xl text-red-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Deuda Total</span>
+                <span class="text-2xl font-bold text-red-600 z-10 text-center">${{ "{:,.0f}".format(kpis.debt) }}</span>
+                <div class="mt-1 text-[10px] text-red-400 font-medium z-10">Pendiente de Cobro</div>
+            </div>
+
+            <!-- Programs Card (Span 1 instead of 2 to fit row for now, or maybe make row larger) -->
+            <!-- Actually user asked to make Total Clients smaller, implying more space. Let's keep Programs visible -->
             <div
                 class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-1 hover:shadow-md transition-shadow">
                 <div class="flex items-center justify-between mb-3 border-b border-gray-50 pb-2">
-                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Estados</span>
-                    <i class="fas fa-chart-pie text-gray-300"></i>
+                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Inscripciones</span>
+                    <i class="fas fa-graduation-cap text-gray-300"></i>
                 </div>
-                <div class="space-y-2">
-                    {% for status, count in kpis.statuses.items() %}
-                    <div class="flex justify-between items-center text-sm group">
-                        <div class="flex items-center">
-                            <span class="w-2 h-2 rounded-full mr-2
-                                {% if status == 'completed' %}bg-green-400
-                                {% elif status == 'pending' %}bg-yellow-400
-                                {% elif status == 'renewed' %}bg-purple-400
-                                {% elif status == 'new' %}bg-blue-400
-                                {% else %}bg-gray-400{% endif %}"></span>
-                            <span class="capitalize text-gray-600 group-hover:text-gray-900 transition-colors">{{ status
-                                or 'Sin estado' }}</span>
-                        </div>
-                        <span class="font-bold text-gray-700">{{ count }}</span>
+                <!-- Dynamic Grid for Programs -->
+                <div class="flex flex-col gap-1 max-h-24 overflow-y-auto custom-scrollbar">
+                    {% for prog, count in kpis.programs.items() %}
+                    <div
+                        class="flex justify-between items-center text-xs p-1 hover:bg-gray-50 rounded transition-colors">
+                        <span class="text-gray-600 truncate flex-1 min-w-0 mr-2" title="{{ prog }}">{{ prog }}</span>
+                        <span class="font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">{{ count }}</span>
                     </div>
                     {% else %}
                     <div class="text-center text-xs text-gray-400 py-2">Sin datos</div>
                     {% endfor %}
                 </div>
             </div>
+        </div>
 
-            <!-- Programs Card -->
+        <!-- Secondary Row for Statuses if needed, or keep hidden/compact -->
+        <!-- User didn't ask to remove Statuses, but space is limited. Let's add a small row below or leave it out if not requested? 
+             User said "make smaller total clients". Let's assume we replace Status with Financials or just add them.
+             With 4 columns: Total, Cash, Debt, Programs. Statuses is missing.
+             Let's add a second row for Statuses if strictly needed, OR make layout 5 cols? 
+             Let's put Statuses in a second row or combine. 
+             Actually, let's just make a second row for Statuses to be safe and thorough. -->
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div
-                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-2 hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between mb-3 border-b border-gray-50 pb-2">
-                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Inscripciones por
-                        Programa</span>
-                    <i class="fas fa-graduation-cap text-gray-300"></i>
-                </div>
-                <!-- Dynamic Grid for Programs -->
-                <div
-                    class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                    {% for prog, count in kpis.programs.items() %}
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-4 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                    <span
+                        class="text-gray-400 text-xs font-bold uppercase tracking-widest flex-shrink-0">Estados:</span>
+                    {% for status, count in kpis.statuses.items() %}
                     <div
-                        class="flex justify-between items-center text-sm p-1 hover:bg-gray-50 rounded transition-colors">
-                        <span class="text-gray-600 truncate flex-1 min-w-0 mr-3" title="{{ prog }}">{{ prog }}</span>
-                        <span
-                            class="flex-shrink-0 font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-xs">{{
-                            count }}</span>
+                        class="flex items-center bg-gray-50 rounded-full px-3 py-1 flex-shrink-0 border border-gray-100">
+                        <span class="w-2 h-2 rounded-full mr-2
+                            {% if status == 'completed' %}bg-green-400
+                            {% elif status == 'pending' %}bg-yellow-400
+                            {% elif status == 'renewed' %}bg-purple-400
+                            {% elif status == 'new' %}bg-blue-400
+                            {% else %}bg-gray-400{% endif %}"></span>
+                        <span class="capitalize text-gray-600 text-xs mr-2">{{ status or 'Sin estado' }}</span>
+                        <span class="font-bold text-gray-800 text-xs">{{ count }}</span>
                     </div>
-                    {% else %}
-                    <div class="col-span-2 text-center text-xs text-gray-400 py-4">Sin inscripciones</div>
                     {% endfor %}
                 </div>
             </div>
