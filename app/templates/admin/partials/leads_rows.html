@@ -1,5 +1,9 @@
 {% for lead in leads %}
 <tr class="hover:bg-gray-50 transition">
+    <td class="px-6 py-4 text-sm">
+        <input type="checkbox" name="user_ids" value="{{ lead.id }}"
+            class="user-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+    </td>
     <td class="px-6 py-4 text-sm text-gray-500 font-mono">
         {{ start_index + loop.index }}
     </td>
@@ -34,8 +38,6 @@
         <span class="text-gray-400 text-xs">-</span>
         {% endif %}
     </td>
-
-
     <!-- Financial Info -->
     <td class="px-6 py-4 text-right text-sm">
         <span class="text-green-600 font-bold">${{ "{:,.0f}".format(lead.total_lifetime_paid)
@@ -53,6 +55,7 @@
     <td class="px-6 py-4">
         {% if lead.lead_profile %}
         <form action="{{ url_for('admin.update_lead_quick', id=lead.id) }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <select name="status" onchange="this.form.submit()" class="text-xs rounded-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-6 font-bold cursor-pointer hover:bg-opacity-80
                 {% if lead.lead_profile.status == 'new' %}bg-gray-100 text-gray-600
                 {% elif lead.lead_profile.status == 'pending' %}bg-yellow-100 text-yellow-700

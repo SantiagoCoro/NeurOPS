@@ -389,6 +389,8 @@ def leads_list():
     per_page = 50
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     leads = pagination.items
+    
+    is_load_more = request.args.get('load_more')
 
     start_index = (page -1) * per_page
     
@@ -430,6 +432,9 @@ def leads_list():
     # Unique statuses for dropdown
     all_statuses = db.session.query(LeadProfile.status).distinct().filter(LeadProfile.status != None).all()
     all_statuses = [s[0] for s in all_statuses]
+
+    if is_load_more:
+        return render_template('admin/partials/leads_rows.html', leads=leads, start_index=start_index)
 
     return render_template('admin/leads_list.html', 
                            title='Gestión de Clientes', 
@@ -707,6 +712,34 @@ def delete_payment(id):
         return redirect(next_url)
         
     return redirect(url_for('admin.edit_client', id=student_id))
+
+@bp.route('/users/bulk_delete', methods=['POST'])
+@admin_required
+def bulk_delete_users():
+    user_ids = request.form.getlist('user_ids')
+    
+    if not user_ids:
+        flash('No se seleccionaron usuarios.')
+        return redirect(url_for('admin.leads_list'))
+        
+    count = 0
+    for uid in user_ids:
+        if str(uid) == str(current_user.id):
+            continue # Don't delete yourself
+            
+        user = User.query.get(uid)
+        if user:
+            db.session.delete(user)
+            count += 1
+            
+    try:
+        db.session.commit()
+        flash(f'{count} usuarios eliminados correctamente.')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error al eliminar usuarios. Verifique dependencias (citas, pagos).')
+        
+    return redirect(url_for('admin.leads_list'))
 
 
 
