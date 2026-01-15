@@ -25,7 +25,7 @@ class User(UserMixin, db.Model):
 
     # Relationships
     # Relationships
-    lead_profile = db.relationship('LeadProfile', backref='user', uselist=False, cascade="all, delete-orphan")
+    lead_profile = db.relationship('LeadProfile', backref='user', uselist=False, cascade="all, delete-orphan", foreign_keys='LeadProfile.user_id')
     enrollments = db.relationship('Enrollment', foreign_keys='Enrollment.student_id', backref='student', lazy='dynamic', cascade="all, delete-orphan")
     
     # For Closers: appointments/leads they handle
@@ -113,6 +113,10 @@ class LeadProfile(db.Model):
 
     notes = db.Column(db.Text)
     
+    # Assignment
+    assigned_closer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assigned_closer = db.relationship('User', foreign_keys=[assigned_closer_id], backref='assigned_leads')
+
     def __repr__(self):
         return f'<LeadProfile {self.user_id}>'
 

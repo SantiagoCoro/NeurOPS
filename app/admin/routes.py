@@ -427,7 +427,7 @@ def leads_list():
 
     # Joins for filtering
     if status_filter:
-        query = query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+        query = query.join(LeadProfile, User.id == LeadProfile.user_id).filter(LeadProfile.status == status_filter)
     
     if program_filter:
         query = query.join(Enrollment, Enrollment.student_id == User.id).filter(Enrollment.program_id == program_filter)
@@ -482,7 +482,7 @@ def leads_list():
     total_users = kpi_query.count()
     
     # Statuses KPI
-    status_counts = db.session.query(LeadProfile.status, db.func.count(User.id)).select_from(User).join(LeadProfile).filter(User.role.in_(['lead', 'student', 'agenda']))
+    status_counts = db.session.query(LeadProfile.status, db.func.count(User.id)).select_from(User).join(LeadProfile, User.id == LeadProfile.user_id).filter(User.role.in_(['lead', 'student', 'agenda']))
     if start_date_str: status_counts = status_counts.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
     if end_date_str: status_counts = status_counts.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
     status_counts = status_counts.group_by(LeadProfile.status).all()
@@ -576,6 +576,9 @@ def leads_list():
     if is_load_more:
         return render_template('admin/partials/leads_rows.html', leads=leads, start_index=start_index)
 
+    # Closers for bulk assign
+    closers = User.query.filter_by(role='closer').all()
+
     return render_template('admin/leads_list.html', 
                            title='Gestión de Clientes', 
                            leads=leads, 
@@ -589,7 +592,8 @@ def leads_list():
                            kpis=kpis,
                            start_index=start_index,
                            all_programs=all_programs,
-                           all_statuses=all_statuses)
+                           all_statuses=all_statuses,
+                           closers=closers)
 
 @bp.route('/users/add-manual', methods=['GET', 'POST'])
 @admin_required
@@ -882,6 +886,35 @@ def bulk_delete_users():
     return redirect(url_for('admin.leads_list'))
 
 
+
+@bp.route('/users/bulk_assign', methods=['POST'])
+@admin_required
+def bulk_assign_closer():
+    closer_id = request.form.get('closer_id')
+    user_ids = request.form.getlist('user_ids')
+    
+    if not closer_id or not user_ids:
+        flash('Seleccione un Closer y al menos un cliente.')
+        return redirect(url_for('admin.leads_list'))
+        
+    closer = User.query.get(closer_id)
+    if not closer or closer.role != 'closer':
+        flash('Closer inválido.')
+        return redirect(url_for('admin.leads_list'))
+        
+    count = 0
+    for uid in user_ids:
+        user = User.query.get(uid)
+        if user:
+            if not user.lead_profile:
+                profile = LeadProfile(user_id=user.id)
+                db.session.add(profile)
+            user.lead_profile.assigned_closer_id = closer.id
+            count += 1
+            
+    db.session.commit()
+    flash(f'{count} clientes asignados a {closer.username}.')
+    return redirect(url_for('admin.leads_list'))
 
 # --- Survey Management Routes ---
 

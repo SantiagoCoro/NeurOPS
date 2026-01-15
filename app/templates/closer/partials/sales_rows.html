@@ -1,0 +1,72 @@
+{% for payment in payments %}
+<tr class="hover:bg-gray-50 transition">
+    <td class="px-6 py-4 text-sm text-gray-500 font-mono">
+        {{ start_index + loop.index }}
+    </td>
+    <td class="px-6 py-4">
+        {% if payment.enrollment and payment.enrollment.student %}
+        <div class="font-medium text-gray-900">{{ payment.enrollment.student.username }}</div>
+        <div class="text-xs text-gray-500 mt-1 space-y-0.5">
+            <div class="flex items-center gap-1">
+                <i class="far fa-envelope w-4"></i> {{ payment.enrollment.student.email }}
+            </div>
+            {% if payment.enrollment.student.lead_profile and payment.enrollment.student.lead_profile.phone %}
+            <div class="flex items-center gap-1">
+                <i class="fas fa-phone w-4"></i> {{ payment.enrollment.student.lead_profile.phone }}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <span class="text-gray-400">Usuario eliminado</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-sm">
+        <span class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-semibold block mb-1">
+            {{ payment.enrollment.program.name if payment.enrollment.program else 'Programa' }}
+        </span>
+    </td>
+    <td class="px-6 py-4 text-center">
+        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium border border-gray-200">
+            {{ payment.method.name if payment.method else 'Desconocido' }}
+        </span>
+    </td>
+    <!-- Amount -->
+    <td class="px-6 py-4 text-right">
+        <span class="font-bold text-gray-800">${{ "{:,.0f}".format(payment.amount) }}</span>
+        <div class="text-xs text-gray-500 mt-0.5">{{ payment.payment_type_label }}</div>
+    </td>
+    <!-- Commission/Net Logic hidden? Or maybe show "My Comm"
+         Admin usually sees Platform Comm. 
+         Let's show My Commission for this sale? 
+         Calculation is 10% of (Amount - Platform Fees).
+         We need that logic per row if we want to show it.
+         Or just keep it clean and rely on Total KPI.
+         Let's show "Fecha" instead.
+    -->
+    <td class="px-6 py-4 text-sm text-gray-500">
+        {{ payment.date.strftime('%Y-%m-%d') }}
+    </td>
+    <!-- Actions -->
+    <td class="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
+        <div class="flex items-center justify-end gap-3">
+            <a href="{{ url_for('closer.edit_sale', id=payment.id) }}" class="text-blue-600 hover:text-blue-900"
+                title="Editar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+            </a>
+            <!-- Delete? Admin usually allows delete. Closer can delete if mistake? Route exists `delete_sale`. -->
+            <a href="{{ url_for('closer.delete_sale', id=payment.id) }}" class="text-red-600 hover:text-red-900"
+                title="Eliminar" onclick="return confirm('¿Eliminar esta transacción?');">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </a>
+        </div>
+    </td>
+</tr>
+{% endfor %}

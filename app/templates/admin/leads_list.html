@@ -213,11 +213,6 @@
         </div>
 
         <div class="flex justify-end mb-4 gap-2">
-            <button type="submit" form="bulkDeleteForm" id="bulkDeleteBtn"
-                class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-150 ease-in-out hidden"
-                onclick="return confirm('¿Estás seguro de eliminar los usuarios seleccionados? Esta acción no se puede deshacer.')">
-                <i class="fas fa-trash mr-2"></i>Eliminar Seleccionados
-            </button>
             <a href="{{ url_for('admin.add_manual_user') }}"
                 class="bg-green-600 hover:green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-150 ease-in-out">
                 <i class="fas fa-plus mr-2"></i>Agregar
@@ -226,7 +221,32 @@
 
         <form id="bulkDeleteForm" action="{{ url_for('admin.bulk_delete_users') }}" method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
+            <!-- Bulk Actions Bar -->
+            <div class="bg-gray-100 p-2 rounded-t-xl border-b border-gray-200 flex items-center gap-4 mb-0">
+                <i class="fas fa-level-up-alt transform rotate-90 text-gray-400 ml-2"></i>
+                <select name="closer_id"
+                    class="text-sm border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">Asignar a Closer...</option>
+                    {% for c in closers %}
+                    <option value="{{ c.id }}">{{ c.username }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" formaction="{{ url_for('admin.bulk_assign_closer') }}"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-1.5 px-3 rounded shadow-sm transition">
+                    Asignar
+                </button>
+
+                <div class="h-6 w-px bg-gray-300 mx-2"></div>
+
+                <button type="submit"
+                    class="text-red-600 hover:text-red-800 text-sm font-medium flex items-center gap-1"
+                    onclick="return confirm('¿Eliminar seleccionados?')">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+            </div>
+
+            <div class="bg-white rounded-b-xl shadow-sm border border-gray-200 border-t-0 overflow-hidden">
                 <table class="w-full text-left">
                     <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
                         <tr>

@@ -21,23 +21,203 @@ def closer_required(f):
 @bp.route('/leads')
 @closer_required
 def leads_list():
-    query = request.args.get('q', '')
+    # --- Persistence/Filtering Logic similar to Admin ---
+    search = request.args.get('search', '')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    program_filter = request.args.get('program')
+    status_filter = request.args.get('status')
+    sort_by = request.args.get('sort_by', 'newest')
+
+    # Base Query: Users assigned to this closer
+    # Assigned via Enrollment OR Appointment? 
+    # Usually "My Clients" implies Sales. "My Leads" implies Appointments. 
+    # Let's include both: distinct users who have an enrollment w/ closer OR appointment w/ closer.
     
-    # Filter strictly by role='lead'
-    # This ensures newly created leads (without appointments) appear
-    # And hides Admin/Closer accounts even if they have test appointments
-    # Filter by role 'lead' OR 'student' (so they remain visible after conversion)
-    leads_query = User.query.filter(User.role.in_(['lead', 'student']))
+    # Subquery approach or Join?
+    # Users who have an Enrollment with closer_id = current
+    # OR Users who have an Appointment with closer_id = current
     
-    if query:
-        search = f"%{query}%"
-        leads_query = leads_query.filter(
-            or_(User.username.ilike(search), User.email.ilike(search))
+    # Simplify: 
+    # query = User.query.filter(User.role.in_(['lead', 'student']))
+    # query = query.filter(or_(User.enrollments.any(closer_id=current_user.id), User.appointments_as_lead.any(closer_id=current_user.id)))
+    # But `appointments_as_lead` is relationship name.
+    
+    query = User.query.filter(User.role.in_(['lead', 'student']))
+    
+    # Filter by assignment (Enrollment, Appointment, or Direct Assignment)
+    query = query.filter(
+        or_(
+            User.enrollments.any(Enrollment.closer_id == current_user.id),
+            User.appointments_as_lead.any(Appointment.closer_id == current_user.id),
+            User.lead_profile.has(assigned_closer_id=current_user.id)
         )
+    )
+
+    # Joins for filtering attributes
+    if status_filter:
+        query = query.join(LeadProfile).filter(LeadProfile.status == status_filter)
     
-    leads = leads_query.order_by(User.id.desc()).limit(50).all()
+    if program_filter:
+        query = query.join(Enrollment, Enrollment.student_id == User.id).filter(Enrollment.program_id == program_filter)
+
+    # Date Filter (Created At)
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        query = query.filter(User.created_at >= start_date)
     
-    return render_template('closer/leads_list.html', leads=leads, query=query)
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
+        query = query.filter(User.created_at < end_date)
+
+    # Search (Name or Email)
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+
+    # Sorting
+    if sort_by == 'oldest':
+        query = query.order_by(User.created_at.asc())
+    elif sort_by == 'a-z':
+        query = query.order_by(User.username.asc())
+    elif sort_by == 'z-a':
+        query = query.order_by(User.username.desc())
+    else: # newest
+        query = query.order_by(User.created_at.desc())
+
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    leads = pagination.items
+    start_index = (page -1) * per_page
+    
+    is_load_more = request.args.get('load_more')
+
+    # --- KPI Calculations (Scoped to Filtered Users) ---
+    # We re-use logic but applied to the 'assigned' subset.
+    
+    # To act efficiently, we might fetch all IDs first or use subqueries.
+    # For now, let's execute separate count queries with same filters.
+    
+    kpi_query = User.query.filter(User.role.in_(['lead', 'student']))
+    kpi_query = kpi_query.filter(or_(User.enrollments.any(Enrollment.closer_id == current_user.id), User.appointments_as_lead.any(Appointment.closer_id == current_user.id)))
+
+    if start_date_str:
+        kpi_query = kpi_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str:
+        kpi_query = kpi_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search:
+        search_term = f"%{search}%"
+        kpi_query = kpi_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+        
+    total_users = kpi_query.count()
+    
+    # Financials (Cash Collect & Debt - My Portfolio)
+    # Cash Collect: Payments on enrollments assigned to ME.
+    # Note: If a user appears in list because of an appointment, but has NO enrollment with me, they contribute 0 to sales.
+    # If they have enrollment with me, we sum payments.
+    
+    fin_query = db.session.query(db.func.sum(Payment.amount)).select_from(User).join(Enrollment, Enrollment.student_id == User.id).join(Payment).filter(
+        Payment.status == 'completed',
+        Enrollment.closer_id == current_user.id # STRICTLY my sales
+    )
+    
+    # Apply User filters to fin_query
+    # We must ensure we filter the USERS similarly (date, search)
+    if start_date_str: fin_query = fin_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: fin_query = fin_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: fin_query = fin_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if status_filter: fin_query = fin_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if program_filter: fin_query = fin_query.filter(Enrollment.program_id == program_filter)
+    
+    total_revenue_gross = fin_query.scalar() or 0.0
+    
+    # Platform Commission (Expenses) - Needed to calc Net Cash Collect?
+    # User said: "Closer commission is 10% of Cash Collect".
+    # Usually "Cash Collect" for the company is (Gross - Stripe Fees). 
+    # Or is "Cash Collect" just Gross?
+    # In Admin Logic: cash_collected = total_revenue - total_commission (platform fees).
+    # Assuming Closer Commission is based on THAT Net Cash Collect.
+    
+    comm_query = db.session.query(
+        db.func.sum(
+            (Payment.amount * (PaymentMethod.commission_percent / 100.0)) + PaymentMethod.commission_fixed
+        )
+    ).select_from(User).join(Enrollment, Enrollment.student_id == User.id).join(Payment).join(PaymentMethod).filter(
+        Payment.status == 'completed',
+        Enrollment.closer_id == current_user.id
+    )
+    
+    if start_date_str: comm_query = comm_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: comm_query = comm_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: comm_query = comm_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if status_filter: comm_query = comm_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if program_filter: comm_query = comm_query.filter(Enrollment.program_id == program_filter)
+    
+    platform_fees = comm_query.scalar() or 0.0
+    
+    cash_collect_net = total_revenue_gross - platform_fees
+    
+    # Closer Commission (10% of Cash Collect Net)
+    # Or Gross? Usually commission is on Net. Let's use Net as calculated in Admin.
+    closer_commission = cash_collect_net * 0.10
+    
+    # Debt (My Enrollments)
+    # Using python iteration for simplicity on filtered set, or robust SQL?
+    # Let's use SQL hybrid like Admin
+    enr_query = db.session.query(Enrollment).join(User, Enrollment.student_id == User.id).filter(
+        Enrollment.status == 'active',
+        Enrollment.closer_id == current_user.id
+    )
+    if start_date_str: enr_query = enr_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: enr_query = enr_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: enr_query = enr_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if status_filter: enr_query = enr_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if program_filter: enr_query = enr_query.filter(Enrollment.program_id == program_filter)
+    
+    active_enrollments = enr_query.all()
+    total_debt = 0.0
+    
+    for enr in active_enrollments:
+        paid = enr.total_paid
+        agreed = enr.total_agreed if enr.total_agreed is not None else (enr.program.price if enr.program else 0.0)
+        debt = agreed - paid
+        if debt > 0:
+            total_debt += debt
+
+    kpis = {
+        'total': total_users,
+        'cash_collected': cash_collect_net,
+        'my_commission': closer_commission,
+        'debt': total_debt
+    }
+    
+    # Filters context
+    all_programs = Program.query.order_by(Program.name).all()
+    all_statuses = db.session.query(LeadProfile.status).distinct().filter(LeadProfile.status != None).all()
+    all_statuses = [s[0] for s in all_statuses]
+    
+    if is_load_more:
+        # We need a partial template for rows. 
+        # Ideally we share 'admin/partials/leads_rows.html' but it has Admin actions.
+        # We should create 'closer/partials/leads_rows.html' or conditionalize.
+        # Creating new file.
+        return render_template('closer/partials/leads_rows.html', leads=leads, start_index=start_index)
+
+    return render_template('closer/leads_list.html', 
+                           leads=leads, 
+                           pagination=pagination,
+                           kpis=kpis,
+                           search=search,
+                           start_date=start_date_str,
+                           end_date=end_date_str,
+                           program_filter=program_filter,
+                           status_filter=status_filter,
+                           sort_by=sort_by,
+                           all_programs=all_programs,
+                           all_statuses=all_statuses,
+                           start_index=start_index)
 
 @bp.route('/lead/<int:id>')
 @closer_required
@@ -660,34 +840,139 @@ def create_sale():
 @bp.route('/sales')
 @closer_required
 def sales_list():
+    # Helper for stats
     # Filter Params
     search = request.args.get('search', '')
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
-
-    # Base Query: Join Enrollment, User (Student)
-    # Filter by closer_id on Enrollment
-    query = Payment.query.join(Enrollment).join(User, Enrollment.student_id == User.id).filter(Enrollment.closer_id == current_user.id)
+    method_filter = request.args.get('method')
+    type_filter = request.args.get('type')
+    program_filter = request.args.get('program')
+    
+    # Base Query: Payments on enrollments assigned to this closer
+    query = Payment.query.join(
+        Enrollment, Payment.enrollment_id == Enrollment.id
+    ).join(
+        User, Enrollment.student_id == User.id
+    ).filter(Enrollment.closer_id == current_user.id)
 
     # Date Filter
     if start_date_str:
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        # Ensure we compare datetime to date or cast. Payment.date is Date or DateTime? 
-        # Model says: date = db.Column(db.Date, nullable=False)
-        query = query.filter(Payment.date >= start_date.date())
+        query = query.filter(Payment.date >= start_date)
     
     if end_date_str:
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
-        query = query.filter(Payment.date <= end_date.date())
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1)
+        query = query.filter(Payment.date < end_date)
 
     # Search (Name or Email)
     if search:
         search_term = f"%{search}%"
         query = query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+        
+    if method_filter:
+        query = query.filter(Payment.payment_method_id == method_filter)
+        
+    if type_filter:
+        query = query.filter(Payment.payment_type == type_filter)
+        
+    if program_filter:
+        query = query.filter(Enrollment.program_id == program_filter)
 
-    payments = query.order_by(Payment.date.desc()).all()
+    # Ordering
+    query = query.order_by(Payment.date.desc())
     
-    return render_template('sales/sales_list.html', payments=payments, search=search, start_date=start_date_str, end_date=end_date_str)
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    payments = pagination.items
+    start_index = (page - 1) * per_page
+    
+    is_load_more = request.args.get('load_more')
+
+    # --- KPI Stats (Filtered) ---
+    # Need to run aggregation on the filtered set
+    
+    # Clone query for aggregation
+    # We need Sum(Payment.amount)
+    stats_query = db.session.query(
+        db.func.sum(Payment.amount),
+        db.func.count(Payment.id),
+        db.func.sum(
+            (Payment.amount * (PaymentMethod.commission_percent / 100.0)) + PaymentMethod.commission_fixed
+        )
+    ).join(
+        Enrollment, Payment.enrollment_id == Enrollment.id
+    ).join(
+        User, Enrollment.student_id == User.id
+    ).outerjoin( # Outer join in case generic method, but usually inner is fine
+        PaymentMethod, Payment.payment_method_id == PaymentMethod.id
+    ).filter(Enrollment.closer_id == current_user.id)
+    
+    # Re-apply filters
+    if start_date_str: stats_query = stats_query.filter(Payment.date >= datetime.strptime(start_date_str, '%Y-%m-%d'))
+    if end_date_str: stats_query = stats_query.filter(Payment.date < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
+    if search: stats_query = stats_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if method_filter: stats_query = stats_query.filter(Payment.payment_method_id == method_filter)
+    if type_filter: stats_query = stats_query.filter(Payment.payment_type == type_filter)
+    if program_filter: stats_query = stats_query.filter(Enrollment.program_id == program_filter)
+    
+    total_gross, count, platform_fees = stats_query.first()
+    total_gross = total_gross or 0.0
+    platform_fees = platform_fees or 0.0
+    count = count or 0
+    
+    cash_collect_net = total_gross - platform_fees
+    my_commission = cash_collect_net * 0.10
+    
+    # Active Debt (Filtered by Same Params? Debt usually is current state, not historical like payments)
+    # But usually context is "Debt of clients in this view".
+    # Admin view shows "Deuda Total" (Global). 
+    # Closer view: "Deuda de Mis Clientes".
+    # Simply sum debt of all enrollments assigned to closer.
+    debt_query = db.session.query(Enrollment).filter(Enrollment.closer_id == current_user.id, Enrollment.status == 'active')
+    # Filter by user/program? Yes to match context.
+    # If search is applied, debt of searched users.
+    if search: debt_query = debt_query.join(User).filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
+    if program_filter: debt_query = debt_query.filter(Enrollment.program_id == program_filter)
+    
+    # Sum debt python-side or complex SQL
+    total_debt = 0.0
+    for enr in debt_query.all():
+         paid = enr.total_paid
+         agreed = enr.total_agreed if enr.total_agreed is not None else (enr.program.price if enr.program else 0.0)
+         d = agreed - paid
+         if d > 0: total_debt += d
+
+    kpis = {
+        'revenue': total_gross,
+        'cash_collected': cash_collect_net,
+        'my_commission': my_commission,
+        'count': count,
+        'debt': total_debt
+    }
+    
+    # Dropdowns
+    methods = PaymentMethod.query.filter_by(is_active=True).all()
+    programs = Program.query.all()
+    
+    if is_load_more:
+        return render_template('closer/partials/sales_rows.html', payments=payments, start_index=start_index)
+
+    return render_template('closer/sales_list.html', 
+                           payments=payments, 
+                           pagination=pagination,
+                           kpis=kpis,
+                           start_date=start_date_str, 
+                           end_date=end_date_str,
+                           search=search,
+                           method_filter=method_filter and int(method_filter),
+                           type_filter=type_filter,
+                           program_filter=program_filter,
+                           methods=methods,
+                           programs=programs,
+                           start_index=start_index)
 
 @bp.route('/sale/edit/<int:id>', methods=['GET', 'POST'])
 @closer_required

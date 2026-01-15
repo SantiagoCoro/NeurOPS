@@ -1,0 +1,214 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+    {% include "includes/closer_sidebar.html" ignore missing %}
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Mis Ventas</h1>
+        </div>
+
+        <!-- KPIs Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <!-- Count -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden">
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Transacciones</span>
+                <span class="text-2xl font-bold text-gray-800">{{ kpis.count }}</span>
+            </div>
+
+            <!-- Gross Revenue (Maybe less relevant for closer but good to know volume) -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500 flex flex-col justify-center items-center">
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Total (Bruto)</span>
+                <span class="text-2xl font-bold text-blue-600 text-center">${{ "{:,.0f}".format(kpis.revenue) }}</span>
+            </div>
+
+            <!-- Cash Collect (Net) - Basis for Commission -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500 flex flex-col justify-center items-center">
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Cash Collect (Neto)</span>
+                <span class="text-2xl font-bold text-green-600 text-center">${{ "{:,.0f}".format(kpis.cash_collected)
+                    }}</span>
+            </div>
+
+            <!-- My Commission -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500 flex flex-col justify-center items-center relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-2 opacity-10">
+                    <i class="fas fa-gem text-5xl text-purple-500 transform rotate-12"></i>
+                </div>
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Mi Comisión (10%)</span>
+                <span class="text-2xl font-bold text-purple-600 text-center">${{ "{:,.0f}".format(kpis.my_commission)
+                    }}</span>
+            </div>
+
+            <!-- Debt -->
+            <div
+                class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500 flex flex-col justify-center items-center">
+                <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Deuda Activa</span>
+                <span class="text-2xl font-bold text-red-600 text-center">${{ "{:,.0f}".format(kpis.debt) }}</span>
+            </div>
+        </div>
+
+        <!-- Filter Form -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <form method="get" action="{{ url_for('closer.sales_list') }}" class="flex flex-wrap gap-4 items-end">
+
+                <!-- Search -->
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+                    <input type="text" name="search" value="{{ search }}"
+                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                        placeholder="Cliente...">
+                </div>
+
+                <!-- Program -->
+                <div class="w-40">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Programa</label>
+                    <select name="program"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="">Todos</option>
+                        {% for p in programs %}
+                        <option value="{{ p.id }}" {% if program_filter==p.id|string %}selected{% endif %}>{{ p.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Method -->
+                <div class="w-40">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Método</label>
+                    <select name="method"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="">Todos</option>
+                        {% for m in methods %}
+                        <option value="{{ m.id }}" {% if method_filter==m.id %}selected{% endif %}>{{ m.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Type -->
+                <div class="w-40">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                    <select name="type"
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="">Todos</option>
+                        <option value="full" {% if type_filter=='full' %}selected{% endif %}>Completo</option>
+                        <option value="installment" {% if type_filter=='installment' %}selected{% endif %}>Cuota
+                        </option>
+                        <option value="down_payment" {% if type_filter=='down_payment' %}selected{% endif %}>Inicial
+                        </option>
+                        <option value="renewal" {% if type_filter=='renewal' %}selected{% endif %}>Renovación</option>
+                    </select>
+                </div>
+
+                <!-- Dates -->
+                <div class="w-32">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                    <input type="date" name="start_date" value="{{ start_date }}"
+                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                </div>
+                <div class="w-32">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                    <input type="date" name="end_date" value="{{ end_date }}"
+                        class="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
+                </div>
+
+                <div class="flex items-center gap-2 pb-0.5">
+                    <button type="submit"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none">
+                        Filtrar
+                    </button>
+                    <a href="{{ url_for('closer.sales_list', clear=1) }}"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <div class="flex justify-end mb-4 gap-2">
+            <!-- Closer can manually add sales via generic button? Or usually via Lead Detail. 
+                  Let's provide the button just in case, redirects to search/select lead. -->
+            <a href="{{ url_for('closer.create_sale') }}"
+                class="bg-green-600 hover:green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-150 ease-in-out">
+                <i class="fas fa-plus mr-2"></i>Nueva Venta
+            </a>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
+                    <tr>
+                        <th class="px-6 py-3 font-semibold">#</th>
+                        <th class="px-6 py-3 font-semibold">Cliente</th>
+                        <th class="px-6 py-3 font-semibold">Programa</th>
+                        <th class="px-6 py-3 font-semibold text-center">Método</th>
+                        <th class="px-6 py-3 font-semibold text-right">Monto</th>
+                        <th class="px-6 py-3 font-semibold">Fecha</th>
+                        <th class="px-6 py-3 font-semibold text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% include 'closer/partials/sales_rows.html' %}
+                </tbody>
+            </table>
+            {% if not payments %}
+            <div class="p-8 text-center text-gray-500">No hay ventas registradas con estos filtros.</div>
+            {% endif %}
+        </div>
+
+        <div class="mt-4 text-center">
+            {% if pagination.has_next %}
+            <button id="loadMoreBtn" type="button"
+                class="bg-indigo-600 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-indigo-700 transition">
+                Cargar más
+            </button>
+            {% endif %}
+            <div id="loadingMore" class="hidden text-gray-500 mt-2">
+                <i class="fas fa-spinner fa-spin mr-2"></i> Cargando...
+            </div>
+        </div>
+
+        <script>
+            let currentPage = {{ pagination.page }};
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            const loadingMore = document.getElementById('loadingMore');
+            const tableBody = document.querySelector('tbody');
+
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function () {
+                    currentPage++;
+                    loadMoreBtn.classList.add('hidden');
+                    loadingMore.classList.remove('hidden');
+
+                    const urlParams = new URLSearchParams(window.location.search);
+                    urlParams.set('page', currentPage);
+                    urlParams.set('load_more', '1');
+
+                    fetch(`{{ url_for('closer.sales_list') }}?${urlParams.toString()}`)
+                        .then(response => response.text())
+                        .then(html => {
+                            if (html.trim()) {
+                                tableBody.insertAdjacentHTML('beforeend', html);
+                                loadMoreBtn.classList.remove('hidden');
+                            } else {
+                                loadMoreBtn.classList.add('hidden');
+                            }
+                            loadingMore.classList.add('hidden');
+                        })
+                        .catch(err => {
+                            console.error('Error executing load more', err);
+                            loadingMore.classList.add('hidden');
+                            loadMoreBtn.classList.remove('hidden');
+                            alert('Error al cargar ventas');
+                        });
+                });
+            }
+        </script>
+
+    </main>
+</div>
+{% endblock %}
