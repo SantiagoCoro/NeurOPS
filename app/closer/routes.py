@@ -957,8 +957,24 @@ def sales_list():
     methods = PaymentMethod.query.filter_by(is_active=True).all()
     programs = Program.query.all()
     
-    if is_load_more:
+    is_ajax = request.args.get('ajax')
+    
+    if is_load_more and not is_ajax:
         return render_template('closer/partials/sales_rows.html', payments=payments, start_index=start_index)
+
+    if is_ajax:
+         return jsonify({
+            'html': render_template('closer/partials/sales_rows.html', payments=payments, start_index=start_index),
+            'kpis': {
+                'sales_count': count,
+                'revenue': "{:,.2f}".format(total_gross),
+                'cash_collected': "{:,.2f}".format(cash_collect_net),
+                'my_commission': "{:,.2f}".format(my_commission),
+                'debt': "{:,.2f}".format(total_debt)
+            },
+            'has_next': pagination.has_next,
+            'next_page': pagination.next_num
+         })
 
     return render_template('closer/sales_list.html', 
                            payments=payments, 

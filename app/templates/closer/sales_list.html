@@ -15,21 +15,23 @@
             <div
                 class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden">
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Transacciones</span>
-                <span class="text-2xl font-bold text-gray-800">{{ kpis.count }}</span>
+                <span id="kpi-sales-count" class="text-2xl font-bold text-gray-800">{{ kpis.count }}</span>
             </div>
 
             <!-- Gross Revenue (Maybe less relevant for closer but good to know volume) -->
             <div
                 class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-blue-500 flex flex-col justify-center items-center">
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Total (Bruto)</span>
-                <span class="text-2xl font-bold text-blue-600 text-center">${{ "{:,.0f}".format(kpis.revenue) }}</span>
+                <span id="kpi-revenue" class="text-2xl font-bold text-blue-600 text-center">${{
+                    "{:,.0f}".format(kpis.revenue) }}</span>
             </div>
 
             <!-- Cash Collect (Net) - Basis for Commission -->
             <div
                 class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500 flex flex-col justify-center items-center">
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Cash Collect (Neto)</span>
-                <span class="text-2xl font-bold text-green-600 text-center">${{ "{:,.0f}".format(kpis.cash_collected)
+                <span id="kpi-cash-collected" class="text-2xl font-bold text-green-600 text-center">${{
+                    "{:,.0f}".format(kpis.cash_collected)
                     }}</span>
             </div>
 
@@ -40,7 +42,8 @@
                     <i class="fas fa-gem text-5xl text-purple-500 transform rotate-12"></i>
                 </div>
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Mi Comisión (10%)</span>
-                <span class="text-2xl font-bold text-purple-600 text-center">${{ "{:,.0f}".format(kpis.my_commission)
+                <span id="kpi-commission" class="text-2xl font-bold text-purple-600 text-center">${{
+                    "{:,.0f}".format(kpis.my_commission)
                     }}</span>
             </div>
 
@@ -48,13 +51,15 @@
             <div
                 class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500 flex flex-col justify-center items-center">
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Deuda Activa</span>
-                <span class="text-2xl font-bold text-red-600 text-center">${{ "{:,.0f}".format(kpis.debt) }}</span>
+                <span id="kpi-debt" class="text-2xl font-bold text-red-600 text-center">${{ "{:,.0f}".format(kpis.debt)
+                    }}</span>
             </div>
         </div>
 
         <!-- Filter Form -->
         <div class="bg-white p-4 rounded-lg shadow-md mb-6">
-            <form method="get" action="{{ url_for('closer.sales_list') }}" class="flex flex-wrap gap-4 items-end">
+            <form id="filterForm" method="get" action="{{ url_for('closer.sales_list') }}"
+                class="flex flex-wrap gap-4 items-end">
 
                 <!-- Search -->
                 <div class="flex-1 min-w-[200px]">
@@ -177,34 +182,103 @@
             const loadMoreBtn = document.getElementById('loadMoreBtn');
             const loadingMore = document.getElementById('loadingMore');
             const tableBody = document.querySelector('tbody');
+            const filterForm = document.getElementById('filterForm');
 
-            if (loadMoreBtn) {
-                loadMoreBtn.addEventListener('click', function () {
-                    currentPage++;
+            // Debounce
+            function debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                };
+            }
+
+            function updateSales(page = 1, append = false) {
+                const formData = new FormData(filterForm);
+                const params = new URLSearchParams(formData);
+                params.set('ajax', '1');
+                params.set('page', page);
+
+                if (append) {
                     loadMoreBtn.classList.add('hidden');
                     loadingMore.classList.remove('hidden');
+                } else {
+                    tableBody.style.opacity = '0.5';
+                }
 
-                    const urlParams = new URLSearchParams(window.location.search);
-                    urlParams.set('page', currentPage);
-                    urlParams.set('load_more', '1');
+                // Update URL
+                if (!append) {
+                    const url = new URL(window.location);
+                    formData.forEach((value, key) => url.searchParams.set(key, value));
+                    window.history.pushState({}, '', url);
+                }
 
-                    fetch(`{{ url_for('closer.sales_list') }}?${urlParams.toString()}`)
-                        .then(response => response.text())
-                        .then(html => {
-                            if (html.trim()) {
-                                tableBody.insertAdjacentHTML('beforeend', html);
-                                loadMoreBtn.classList.remove('hidden');
-                            } else {
-                                loadMoreBtn.classList.add('hidden');
-                            }
+                fetch(`{{ url_for('closer.sales_list') }}?${params.toString()}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (append) {
+                            tableBody.insertAdjacentHTML('beforeend', data.html);
                             loadingMore.classList.add('hidden');
-                        })
-                        .catch(err => {
-                            console.error('Error executing load more', err);
-                            loadingMore.classList.add('hidden');
+                        } else {
+                            tableBody.innerHTML = data.html;
+                            tableBody.style.opacity = '1';
+                        }
+
+                        // Update KPIs
+                        if (data.kpis) {
+                            if (document.getElementById('kpi-sales-count'))
+                                document.getElementById('kpi-sales-count').innerText = data.kpis.sales_count;
+                            if (document.getElementById('kpi-revenue'))
+                                document.getElementById('kpi-revenue').innerText = '$' + data.kpis.revenue;
+                            if (document.getElementById('kpi-cash-collected'))
+                                document.getElementById('kpi-cash-collected').innerText = '$' + data.kpis.cash_collected;
+                            if (document.getElementById('kpi-commission'))
+                                document.getElementById('kpi-commission').innerText = '$' + data.kpis.my_commission;
+                            if (document.getElementById('kpi-debt'))
+                                document.getElementById('kpi-debt').innerText = '$' + data.kpis.debt;
+                        }
+
+                        // Pagination
+                        if (data.has_next) {
                             loadMoreBtn.classList.remove('hidden');
-                            alert('Error al cargar ventas');
-                        });
+                        } else {
+                            loadMoreBtn.classList.add('hidden');
+                        }
+
+                        currentPage = page;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        tableBody.style.opacity = '1';
+                        loadingMore.classList.add('hidden');
+                        if (append) loadMoreBtn.classList.remove('hidden');
+                    });
+            }
+
+            // Bind Inputs
+            const inputs = filterForm.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                if (input.name === 'search') {
+                    input.addEventListener('input', debounce(() => updateSales(1), 500));
+                } else {
+                    input.addEventListener('change', () => updateSales(1));
+                }
+            });
+
+            // Prevent Form Submit (Refresh)
+            filterForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                updateSales(1);
+            });
+
+            // Bind Load More
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function () {
+                    updateSales(currentPage + 1, true);
                 });
             }
         </script>

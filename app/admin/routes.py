@@ -1701,8 +1701,23 @@ def sales_list():
         ('deposit', 'Seña')
     ]
 
-    if is_load_more:
+    is_ajax = request.args.get('ajax')
+    
+    if is_load_more and not is_ajax:
         return render_template('admin/partials/sales_rows.html', payments=payments)
+        
+    if is_ajax:
+        return jsonify({
+            'html': render_template('admin/partials/sales_rows.html', payments=payments),
+            'kpis': {
+                'sales_count': total_sales_count,
+                'total_revenue': "{:,.2f}".format(total_revenue),
+                'cash_collected': "{:,.2f}".format(cash_collected),
+                'avg_ticket': "{:,.2f}".format(avg_ticket)
+            },
+            'has_next': pagination.has_next,
+            'next_page': pagination.next_num
+        })
     
     return render_template('admin/sales_list.html',
                            payments=payments,

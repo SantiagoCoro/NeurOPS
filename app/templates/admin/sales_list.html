@@ -16,7 +16,7 @@
                         class="fas fa-shopping-cart text-6xl text-blue-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
                 </div>
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Total Ventas</span>
-                <span class="text-3xl font-bold text-gray-800 z-10">{{ total_sales_count }}</span>
+                <span id="kpi-sales-count" class="text-3xl font-bold text-gray-800 z-10">{{ total_sales_count }}</span>
                 <div class="mt-2 text-xs text-blue-500 font-medium bg-blue-50 px-2 py-1 rounded-full z-10">
                     <i class="fas fa-receipt mr-1"></i>Registros
                 </div>
@@ -30,7 +30,8 @@
                         class="fas fa-dollar-sign text-6xl text-gray-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
                 </div>
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Ingresos Brutos</span>
-                <span class="text-3xl font-bold text-gray-800 z-10 text-center">${{ "{:,.2f}".format(total_revenue)
+                <span id="kpi-revenue" class="text-3xl font-bold text-gray-800 z-10 text-center">${{
+                    "{:,.2f}".format(total_revenue)
                     }}</span>
             </div>
 
@@ -43,7 +44,8 @@
                 </div>
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Cash Collected
                     (Neto)</span>
-                <span class="text-3xl font-bold text-gray-900 z-10 text-center">${{ "{:,.2f}".format(cash_collected)
+                <span id="kpi-cash-collected" class="text-3xl font-bold text-gray-900 z-10 text-center">${{
+                    "{:,.2f}".format(cash_collected)
                     }}</span>
                 <div class="mt-2 text-xs text-gray-400 font-medium z-10">Ingresos - Comisiones</div>
             </div>
@@ -56,7 +58,8 @@
                         class="fas fa-tag text-6xl text-purple-500 transform rotate-12 group-hover:scale-110 transition-transform"></i>
                 </div>
                 <span class="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1 z-10">Ticket Promedio</span>
-                <span class="text-3xl font-bold text-gray-900 z-10 text-center">${{ "{:,.2f}".format(avg_ticket)
+                <span id="kpi-avg-ticket" class="text-3xl font-bold text-gray-900 z-10 text-center">${{
+                    "{:,.2f}".format(avg_ticket)
                     }}</span>
                 <div class="mt-2 text-xs text-gray-400 font-medium z-10">Completos + 1er Pago</div>
             </div>
@@ -93,7 +96,7 @@
                 <!-- Program Filter -->
                 <div class="md:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">Programa</label>
-                    <select name="program_id" onchange="document.getElementById('filterForm').submit()"
+                    <select name="program_id"
                         class="block w-full pl-2 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow bg-white">
                         <option value="">Todos</option>
                         {% for prog in all_programs %}
@@ -106,7 +109,7 @@
                 <!-- Payment Type Filter -->
                 <div class="md:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">Tipo de Pago</label>
-                    <select name="payment_type" onchange="document.getElementById('filterForm').submit()"
+                    <select name="payment_type"
                         class="block w-full pl-2 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow bg-white">
                         <option value="">Todos</option>
                         {% for code, label in payment_types %}
@@ -118,7 +121,7 @@
                 <!-- Method Filter -->
                 <div class="md:col-span-2">
                     <label class="block text-xs font-medium text-gray-500 mb-1">Método</label>
-                    <select name="method_id" onchange="document.getElementById('filterForm').submit()"
+                    <select name="method_id"
                         class="block w-full pl-2 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-shadow bg-white">
                         <option value="">Todos</option>
                         {% for m in all_methods %}
@@ -133,13 +136,11 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">Desde</label>
                         <input type="date" name="start_date" value="{{ start_date }}"
-                            onchange="document.getElementById('filterForm').submit()"
                             class="block w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
                         <input type="date" name="end_date" value="{{ end_date }}"
-                            onchange="document.getElementById('filterForm').submit()"
                             class="block w-full px-3 py-2 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500">
                     </div>
                 </div>
@@ -198,51 +199,97 @@
             const loadMoreBtn = document.getElementById('loadMoreBtn');
             const loadingMore = document.getElementById('loadingMore');
             const tableBody = document.querySelector('tbody');
+            const filterForm = document.getElementById('filterForm');
 
-            if (loadMoreBtn) {
-                loadMoreBtn.addEventListener('click', function () {
-                    currentPage++;
+            // Debounce function for search
+            function debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                };
+            }
+
+            function updateSales(page = 1, append = false) {
+                const formData = new FormData(filterForm);
+                const params = new URLSearchParams(formData);
+                params.set('ajax', '1');
+                params.set('page', page);
+
+                if (append) {
                     loadMoreBtn.classList.add('hidden');
                     loadingMore.classList.remove('hidden');
+                } else {
+                    tableBody.style.opacity = '0.5';
+                }
 
-                    // Preserve current search parameters
-                    const urlParams = new URLSearchParams(window.location.search);
-                    urlParams.set('page', currentPage);
-                    urlParams.set('load_more', '1');
+                // Update URL without reloading (optional, helps with sharing)
+                if (!append) {
+                    const url = new URL(window.location);
+                    formData.forEach((value, key) => url.searchParams.set(key, value));
+                    window.history.pushState({}, '', url);
+                }
 
-                    fetch(`{{ url_for('admin.sales_list') }}?${urlParams.toString()}`)
-                        .then(response => response.text())
-                        .then(html => {
-                            if (html.trim()) {
-                                // Append new rows
-                                tableBody.insertAdjacentHTML('beforeend', html);
-
-                                // Since we don't know if there is a 'next' page from just the fragment,
-                                // we might assume standard behaviour: if fragment is empty, stop. 
-                                // But pagination object is server side. 
-                                // Ideally the fragment or response should indicate if more available.
-                                // For simple approach: we assume if we got rows, we *might* have more, 
-                                // BUT usually the button logic relies on server state. 
-                                // If we assume infinite scroll via button until empty.
-                                // NOTE: The button availability was rendered server-side for page 1.
-                                // Updating the button visibility for page 3 needs client logic or a returned flag.
-                                // For now, we will simply SHOW the button again if we got content. 
-                                // If the user clicks and gets nothing next time, we hide it.
-                                // Better approach: check if number of rows returned < 50?
-                                // Let's keep it simple: Show button again.
-
-                                loadMoreBtn.classList.remove('hidden');
-                            } else {
-                                loadMoreBtn.classList.add('hidden');
-                            }
+                fetch(`{{ url_for('admin.sales_list') }}?${params.toString()}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (append) {
+                            tableBody.insertAdjacentHTML('beforeend', data.html);
                             loadingMore.classList.add('hidden');
-                        })
-                        .catch(err => {
-                            console.error('Error executing load more', err);
-                            loadingMore.classList.add('hidden');
+                        } else {
+                            tableBody.innerHTML = data.html;
+                            tableBody.style.opacity = '1';
+                            // Scroll to top of table if not appending
+                            // tableBody.scrollIntoView({ behavior: 'smooth' });
+                        }
+
+                        // Update KPIs
+                        if (data.kpis) {
+                            if (document.getElementById('kpi-sales-count'))
+                                document.getElementById('kpi-sales-count').innerText = data.kpis.sales_count;
+                            if (document.getElementById('kpi-revenue'))
+                                document.getElementById('kpi-revenue').innerText = '$' + data.kpis.total_revenue;
+                            if (document.getElementById('kpi-cash-collected'))
+                                document.getElementById('kpi-cash-collected').innerText = '$' + data.kpis.cash_collected;
+                            if (document.getElementById('kpi-avg-ticket'))
+                                document.getElementById('kpi-avg-ticket').innerText = '$' + data.kpis.avg_ticket;
+                        }
+
+                        // Handle Load More Button
+                        if (data.has_next) {
                             loadMoreBtn.classList.remove('hidden');
-                            alert('Error al cargar más ventas');
-                        });
+                        } else {
+                            loadMoreBtn.classList.add('hidden');
+                        }
+
+                        currentPage = page;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        tableBody.style.opacity = '1';
+                        loadingMore.classList.add('hidden');
+                        if (append) loadMoreBtn.classList.remove('hidden');
+                    });
+            }
+
+            // Bind Event Listeners
+            const inputs = filterForm.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                if (input.name === 'search') {
+                    input.addEventListener('input', debounce(() => updateSales(1), 500));
+                } else {
+                    input.addEventListener('change', () => updateSales(1));
+                }
+            });
+
+            // Bind Load More
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', function () {
+                    updateSales(currentPage + 1, true);
                 });
             }
         </script>
