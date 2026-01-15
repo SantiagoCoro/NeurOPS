@@ -148,38 +148,62 @@
         </div>
 
         <!-- Sales Table -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
-                        <tr>
-                            <th class="px-6 py-3 font-semibold tracking-wider">Fecha</th>
-                            <th class="px-6 py-3 font-semibold tracking-wider">Cliente</th>
-                            <th class="px-6 py-3 font-semibold tracking-wider">Programa</th>
-                            <th class="px-6 py-3 font-semibold tracking-wider text-right">Monto</th>
-                            <th class="px-6 py-3 font-semibold tracking-wider">Tipo</th>
-                            <th class="px-6 py-3 font-semibold tracking-wider">Método</th>
-                            <th class="px-6 py-3 font-semibold tracking-wider text-right">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 bg-white">
-                        {% include "admin/partials/sales_rows.html" %}
-                    </tbody>
-                </table>
+        <form id="bulkForm" method="POST" action="{{ url_for('admin.bulk_assign_sales_closer') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="flex items-center gap-4 mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <span class="text-sm font-medium text-gray-700"><i class="fas fa-tasks mr-2"></i>Acciones en
+                    Lote:</span>
+                <select name="closer_id" required
+                    class="block w-64 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">Asignar Closer...</option>
+                    {% for c in closers %}
+                    <option value="{{ c.id }}">{{ c.username }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none">
+                    Asignar
+                </button>
             </div>
 
-            {% if not payments %}
-            <div class="p-12 text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
-                    <i class="fas fa-search text-gray-400 text-2xl"></i>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase text-xs">
+                            <tr>
+                                <th class="px-6 py-3 font-semibold tracking-wider w-4">
+                                    <input type="checkbox" id="selectAll"
+                                        class="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                </th>
+                                <th class="px-6 py-3 font-semibold tracking-wider w-8">#</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider">Fecha</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider">Cliente</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider">Programa</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider text-right">Monto</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider">Tipo</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider">Método</th>
+                                <th class="px-6 py-3 font-semibold tracking-wider text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            {% include "admin/partials/sales_rows.html" %}
+                        </tbody>
+                    </table>
                 </div>
-                <h3 class="text-lg font-medium text-gray-900">No se encontraron ventas</h3>
-                <p class="text-gray-500 mt-1">Intenta ajustar los filtros de búsqueda.</p>
-                <a href="{{ url_for('admin.sales_list', clear=1) }}"
-                    class="mt-4 inline-block text-indigo-600 font-medium hover:underline">Limpiar filtros</a>
+
+                {% if not payments %}
+                <div class="p-12 text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                        <i class="fas fa-search text-gray-400 text-2xl"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900">No se encontraron ventas</h3>
+                    <p class="text-gray-500 mt-1">Intenta ajustar los filtros de búsqueda.</p>
+                    <a href="{{ url_for('admin.sales_list', clear=1) }}"
+                        class="mt-4 inline-block text-indigo-600 font-medium hover:underline">Limpiar filtros</a>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
-        </div>
+        </form>
 
         <!-- Pagination Load More -->
         <div class="text-center pb-8">
@@ -290,6 +314,15 @@
             if (loadMoreBtn) {
                 loadMoreBtn.addEventListener('click', function () {
                     updateSales(currentPage + 1, true);
+                });
+            }
+
+            // Select All Logic
+            const selectAll = document.getElementById('selectAll');
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    const checkboxes = document.querySelectorAll('input[name="payment_ids"]');
+                    checkboxes.forEach(cb => cb.checked = this.checked);
                 });
             }
         </script>

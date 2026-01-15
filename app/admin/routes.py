@@ -1553,7 +1553,29 @@ def appointments_list():
                            start_date=start_date,
                            end_date=end_date,
                            search=search) 
-                           
+
+@bp.route('/sales/bulk_assign', methods=['POST'])
+@admin_required
+def bulk_assign_sales_closer():
+    closer_id = request.form.get('closer_id')
+    payment_ids = request.form.getlist('payment_ids')
+    
+    if not closer_id:
+        flash('Seleccione un closer.')
+        return redirect(url_for('admin.sales_list'))
+        
+    count = 0
+    for pid in payment_ids:
+        payment = Payment.query.get(pid)
+        if payment and payment.enrollment:
+             payment.enrollment.closer_id = closer_id
+             db.session.add(payment.enrollment)
+             count += 1
+             
+    db.session.commit()
+    flash(f'{count} ventas asignadas correctamente.')
+    return redirect(url_for('admin.sales_list'))
+
 @bp.route('/sales')
 @admin_required
 def sales_list():
@@ -1700,15 +1722,18 @@ def sales_list():
         ('installment', 'Cuota'),
         ('deposit', 'Seña')
     ]
+    
+    closers = User.query.filter(db.or_(User.role == 'closer', User.role == 'admin')).all()
+    start_index = (page - 1) * per_page
 
     is_ajax = request.args.get('ajax')
     
     if is_load_more and not is_ajax:
-        return render_template('admin/partials/sales_rows.html', payments=payments)
+        return render_template('admin/partials/sales_rows.html', payments=payments, start_index=start_index)
         
     if is_ajax:
         return jsonify({
-            'html': render_template('admin/partials/sales_rows.html', payments=payments),
+            'html': render_template('admin/partials/sales_rows.html', payments=payments, start_index=start_index),
             'kpis': {
                 'sales_count': total_sales_count,
                 'total_revenue': "{:,.2f}".format(total_revenue),
@@ -1735,7 +1760,9 @@ def sales_list():
                            total_sales_count=total_sales_count,
                            all_programs=all_programs,
                            all_methods=all_methods,
-                           payment_types=payment_types)
+                           payment_types=payment_types,
+                           closers=closers,
+                           start_index=start_index)
 
 @bp.route('/appointments/delete/<int:id>')
 @admin_required
