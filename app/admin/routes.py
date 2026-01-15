@@ -1365,21 +1365,26 @@ def finances():
     recurring_form = RecurringExpenseForm()
     recurring_expenses = RecurringExpense.query.all()
     
-    # 4. Income & Cash Collected Logic
-    payments = Payment.query.filter(
-        Payment.date >= start_date,
-        Payment.date <= end_date,
-        Payment.status == 'completed'
+    # 4. Income & Cash Collected Logic (Cohort - User Registration based)
+    # Filter users created in the selected period ("Cohort")
+    period_users = User.query.filter(
+        User.created_at >= start_date,
+        User.created_at <= end_date,
+        User.role.in_(['student', 'lead'])
     ).all()
     
     gross_revenue = 0
     total_commission = 0
     
-    for p in payments:
-        gross_revenue += p.amount
-        if p.method:
-            comm = (p.amount * (p.method.commission_percent / 100)) + p.method.commission_fixed
-            total_commission += comm
+    for user in period_users:
+        # Sum all LIFETIME payments for this user cohort
+        for enr in user.enrollments:
+            completed_payments = enr.payments.filter_by(status='completed').all()
+            for p in completed_payments:
+                gross_revenue += p.amount
+                if p.method:
+                    comm = (p.amount * (p.method.commission_percent / 100)) + p.method.commission_fixed
+                    total_commission += comm
             
     cash_collected = gross_revenue - total_commission
     net_profit = cash_collected - total_expenses
