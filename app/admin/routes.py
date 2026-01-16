@@ -796,8 +796,10 @@ def edit_client(id):
         
         user.lead_profile.phone = form.phone.data
         user.lead_profile.instagram = form.instagram.data
+
         user.lead_profile.status = form.status.data
-        
+
+
         try:
             db.session.commit()
             flash('Cliente actualizado exitosamente.')
@@ -2199,3 +2201,79 @@ def integrations():
         return redirect(url_for('admin.integrations'))
         
     return render_template('admin/integrations.html', integration=integration)
+
+@bp.route('/database')
+@admin_required
+def database_schema():
+    # Translation dictionary
+    translations = {
+        'users': 'Usuarios',
+        'lead_profiles': 'Perfiles_de_Prospectos',
+        'event_groups': 'Grupos_de_Eventos',
+        'events': 'Eventos',
+        'programs': 'Programas',
+        'enrollments': 'Inscripciones',
+        'payment_methods': 'Metodos_de_Pago',
+        'payments': 'Pagos',
+        'appointments': 'Citas',
+        'availability': 'Disponibilidad',
+        'survey_questions': 'Preguntas_Encuesta',
+        'survey_answers': 'Respuestas_Encuesta',
+        'expenses': 'Gastos',
+        'recurring_expenses': 'Gastos_Recurrentes',
+        'user_view_settings': 'Config_Vistas',
+        'integrations': 'Integraciones',
+        'closer_daily_stats': 'Estadisticas_Diarias',
+        'alembic_version': 'Version_DB'
+    }
+
+    mermaid_str = "erDiagram\n"
+    
+    # helper to clean names for mermaid (no spaces)
+    def clean(name):
+        return name.replace(' ', '_')
+
+    # Iterate over all tables in metadata
+    # Ensure all models are imported so metadata is populated
+    # (They are imported at top of file)
+    
+    sorted_tables = sorted(db.metadata.tables.items())
+    
+    for table_name, table in sorted_tables:
+        t_label = translations.get(table_name, table_name)
+        mermaid_str += f"    {t_label} {{\n"
+        
+        # Add columns
+        for column in table.columns:
+            # Type is a bit complex in SQLA, simplifying text
+            col_type = str(column.type).replace('VARCHAR', 'string').replace('INTEGER', 'int').replace('BOOLEAN', 'bool').replace('DATETIME', 'datetime').replace('FLOAT', 'float').split('(')[0]
+            
+            # Key indicators
+            key_suffix = ""
+            if column.primary_key:
+                key_suffix = " PK"
+            elif column.foreign_keys:
+                key_suffix = " FK"
+                
+            mermaid_str += f"        {col_type} {column.name}{key_suffix}\n"
+            
+        mermaid_str += "    }\n"
+
+    # Add Relationships
+    for table_name, table in sorted_tables:
+        t_label_source = translations.get(table_name, table_name)
+        
+        for column in table.columns:
+            for fk in column.foreign_keys:
+                target_table = fk.column.table.name
+                t_label_target = translations.get(target_table, target_table)
+                
+                # Relationship logic: 
+                # Mermaid ER is usually One-to-Many: ||--o{
+                # We assume FK implies Many (source) to One (target) usually, 
+                # but in Mermaid standard: One ||--|{ Many
+                # Here: Target (PK side) ||--o{ Source (FK side)
+                
+                mermaid_str += f"    {t_label_target} ||--o{{ {t_label_source} : \"tiene\"\n"
+    
+    return render_template('admin/database.html', mermaid_chart=mermaid_str)

@@ -1,0 +1,146 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Esquema de Base de Datos{% endblock %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+
+    {% include "includes/admin_sidebar.html" %}
+
+    <main class="flex-1 overflow-hidden bg-gray-50 relative flex flex-col">
+        <div class="absolute top-4 left-4 z-10 bg-white/80 backdrop-blur p-2 rounded shadow border border-gray-200">
+            <h1 class="text-xl font-bold text-gray-800">Esquema de la Base de Datos</h1>
+            <p class="text-xs text-gray-500">
+                <span class="font-bold">Pan:</span> Click + Arrastrar <br>
+                <span class="font-bold">Zoom:</span> Ctrl + Rueda
+            </p>
+            <button id="resetView"
+                class="mt-2 text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded hover:bg-indigo-100 border border-indigo-200">
+                Centrar Vista
+            </button>
+        </div>
+
+        <!-- Container for the diagram, creating a viewport -->
+        <div id="diagram-viewport" class="w-full h-full overflow-hidden bg-gray-50 cursor-move">
+            <!-- Inner container that will be transformed -->
+            <div id="diagram-content" class="origin-top-left transition-transform duration-75 ease-out"
+                style="min-width: 100%; min-height: 100%;">
+                <div class="mermaid flex justify-center p-20">
+                    {{ mermaid_chart|safe }}
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'default',
+        securityLevel: 'loose',
+        er: {
+            useMaxWidth: false,
+            diagramPadding: 20,
+            layoutDirection: 'LR'
+        }
+    });
+
+    // Pan and Zoom Logic
+    document.addEventListener('DOMContentLoaded', () => {
+        const viewport = document.getElementById('diagram-viewport');
+        const content = document.getElementById('diagram-content');
+        const resetBtn = document.getElementById('resetView');
+
+        let isPanning = false;
+        let startX = 0, startY = 0;
+        let translateX = 0, translateY = 0;
+        let scale = 1;
+
+        // Configuration
+        const minScale = 0.1;
+        const maxScale = 5;
+        const zoomSensitivity = 0.001;
+
+        // Initialize Center (Optional: naive centering)
+        // We can just start at 0,0 or try to center later. 
+        // Let's stick to 0,0 default but allow user to pan.
+
+        // --- Pan Logic ---
+        viewport.addEventListener('mousedown', (e) => {
+            isPanning = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            viewport.style.cursor = 'grabbing';
+            e.preventDefault(); // Prevent text selection
+        });
+
+        window.addEventListener('mouseup', () => {
+            isPanning = false;
+            viewport.style.cursor = 'move';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            e.preventDefault();
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            updateTransform();
+        });
+
+        // --- Zoom Logic (Ctrl + Wheel) ---
+        viewport.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+
+                // Calculate zoom
+                const delta = -e.deltaY * zoomSensitivity;
+                const newScale = Math.min(Math.max(minScale, scale + delta), maxScale);
+
+                // Zoom towards mouse pointer logic would be better but simple scale is okay for now
+                // Detailed "zoom to point" logic:
+                // 1. Get mouse pos relative to content
+                const rect = content.getBoundingClientRect();
+                const offsetX = e.clientX - rect.left;
+                const offsetY = e.clientY - rect.top;
+
+                // 2. Calculate how much the offset changes
+                // But simpler: just scale. 
+                // To zoom to point properly requires adjusting translate as well.
+
+                // Let's try simple scale first, if user wants better they can ask. 
+                // Actually, "Zoom to center of screen" or "Zoom to cursor" is standard.
+                // Let's implement Zoom to Cursor roughly:
+                // oldWorldPoint = (mouse - translate) / oldScale
+                // newWorldPoint = oldWorldPoint
+                // newTranslate = mouse - newWorldPoint * newScale
+
+                const mouseX = e.clientX - viewport.getBoundingClientRect().left;
+                const mouseY = e.clientY - viewport.getBoundingClientRect().top;
+
+                const valX = (mouseX - translateX) / scale;
+                const valY = (mouseY - translateY) / scale;
+
+                translateX = mouseX - (valX * newScale);
+                translateY = mouseY - (valY * newScale);
+                scale = newScale;
+
+                updateTransform();
+            }
+        }, { passive: false });
+
+        // --- Apply Transform ---
+        function updateTransform() {
+            content.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        }
+
+        // --- Reset ---
+        resetBtn.addEventListener('click', () => {
+            translateX = 0;
+            translateY = 0;
+            scale = 1;
+            updateTransform();
+        });
+    });
+</script>
+{% endblock %}
