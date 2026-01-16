@@ -128,7 +128,7 @@ def dashboard():
     end_dt = datetime.combine(end_date, time.max)
 
     # 1. Income This Month
-    payments_month = Payment.query.filter(
+    payments_month = Payment.query.options(db.joinedload(Payment.enrollment)).filter(
         Payment.date >= start_dt,
         Payment.date <= end_dt,
         Payment.status == 'completed'
@@ -145,11 +145,34 @@ def dashboard():
             
     cash_collected_month = income_month - total_commission_month
     
+    # Calculate Closer Commissions (10% of Net Cash from Assigned Sales)
+    # Re-iterate payments (efficient enough) or accumulate in previous loop
+    # Let's re-iterate to be clean or optimize previous loop.
+    # Actually, previous loop needs access to enrollment.
+    # Let's assume we can access p.enrollment efficiently (SQLAlchemy lazy load or we join).
+    # Since we didn't join in query, it might be N+1. 
+    # Let's optimize the query first.
+    
     # 2. Expenses and Net Profit (Selected Period)
     total_expenses = db.session.query(db.func.sum(Expense.amount)).filter(
         Expense.date >= start_dt,
         Expense.date <= end_dt
     ).scalar() or 0
+
+    # Closer Commissions Calculation
+    closer_commissions_month = 0
+    for p in payments_month:
+        if p.enrollment and p.enrollment.closer_id:
+            # Net amount for this payment
+            p_amount = p.amount
+            if p.method:
+                p_fee = (p.amount * (p.method.commission_percent / 100)) + p.method.commission_fixed
+                p_amount -= p_fee
+            
+            # 10% Commission
+            closer_commissions_month += (p_amount * 0.10)
+
+    total_expenses += closer_commissions_month
     
     net_profit = cash_collected_month - total_expenses
     
@@ -1495,6 +1518,10 @@ def finances():
         Expense.date <= end_date
     ).order_by(Expense.date.desc())
     expenses = expenses_query.all()
+    expenses = expenses_query.all()
+    # Inject Virtual Expense for Closer Commissions (Calculated later, but need to append to list)
+    # We calculate it below.
+    
     total_expenses = sum(e.amount for e in expenses)
 
     # 3. Recurring Expenses Configurations
@@ -1506,7 +1533,7 @@ def finances():
     start_dt = datetime.combine(start_date, time.min)
     end_dt = datetime.combine(end_date, time.max)
     
-    period_payments = Payment.query.filter(
+    period_payments = Payment.query.options(db.joinedload(Payment.enrollment)).filter(
         Payment.date >= start_dt,
         Payment.date <= end_dt,
         Payment.status == 'completed'
@@ -1522,7 +1549,22 @@ def finances():
             total_commission += comm
             
     cash_collected = gross_revenue - total_commission
-    net_profit = cash_collected - total_expenses
+
+    # Closer Commissions
+    closer_commission_total = 0
+    for p in period_payments:
+         if p.enrollment and p.enrollment.closer_id:
+            p_amount = p.amount
+            if p.method:
+                p_fee = (p.amount * (p.method.commission_percent / 100)) + p.method.commission_fixed
+                p_amount -= p_fee
+            closer_commission_total += (p_amount * 0.10)
+    
+    # Add to Total Expenses (for calculation)
+    net_profit = cash_collected - (total_expenses + closer_commission_total)
+    
+    # Update Total Expenses Display variable
+    total_expenses += closer_commission_total
     
     # Pass date *strings* for input values if they were provided, else format dates
     s_date_val = start_date_str if start_date_str else start_date.strftime('%Y-%m-%d')
@@ -1543,6 +1585,22 @@ def finances():
                 'net_profit_positive': net_profit >= 0
             }
         })
+
+    # Append virtual expense to list for display
+    if closer_commission_total > 0:
+        # Create a simple object-like structure
+        class VirtualExpense:
+            def __init__(self, date, description, category, amount, id=None):
+                self.date = date
+                self.description = description
+                self.category = category
+                self.amount = amount
+                self.id = id
+        
+        v_exp = VirtualExpense(end_date, 'Comisiones Closers (Calculado)', 'variable', closer_commission_total)
+        expenses.append(v_exp)
+        # Re-sort by date desc
+        expenses.sort(key=lambda x: x.date, reverse=True)
 
     return render_template('admin/finances.html',
                            start_date=s_date_val,

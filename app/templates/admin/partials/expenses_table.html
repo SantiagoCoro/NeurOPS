@@ -29,6 +29,7 @@
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">${{
                     "%.2f"|format(expense.amount) }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {% if expense.id %}
                     <a href="{{ url_for('admin.edit_expense', id=expense.id) }}"
                         class="text-indigo-600 hover:text-indigo-900 inline-block mr-2" title="Editar">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
@@ -49,6 +50,9 @@
                             </svg>
                         </button>
                     </form>
+                    {% else %}
+                    <span class="text-gray-400 text-xs italic">Calculado</span>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
