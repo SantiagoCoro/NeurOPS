@@ -1,13 +1,13 @@
-
 from flask import render_template, redirect, url_for, flash, request, current_app, jsonify
 from flask_login import login_required, current_user
 from app.admin import bp
 from app.admin.forms import UserForm, SurveyQuestionForm, EventForm, ProgramForm, PaymentMethodForm, ClientEditForm, PaymentForm, ExpenseForm, RecurringExpenseForm, EventGroupForm, ManualAddForm, AdminSaleForm
 from app.closer.forms import SaleForm, LeadForm
 from app.closer.utils import send_sales_webhook
-from app.models import User, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup, UserViewSetting, Integration 
+from app.models import User, CloserDailyStats, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup, UserViewSetting, Integration 
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import or_
+from app.decorators import role_required
 
 
 from functools import wraps
@@ -22,6 +22,79 @@ def admin_required(f):
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function
+
+@bp.route('/admin/closer-stats')
+@login_required
+@role_required('admin')
+def closer_stats():
+    # Filters
+    start_date_str = request.args.get('start_date', (datetime.today() - timedelta(days=30)).strftime('%Y-%m-%d'))
+    end_date_str = request.args.get('end_date', datetime.today().strftime('%Y-%m-%d'))
+    closer_id = request.args.get('closer_id', '')
+    
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    
+    # Query Stats
+    query = CloserDailyStats.query.filter(CloserDailyStats.date >= start_date, CloserDailyStats.date <= end_date)
+    
+    if closer_id:
+        query = query.filter(CloserDailyStats.closer_id == int(closer_id))
+        
+    stats_records = query.order_by(CloserDailyStats.date.desc()).all()
+    
+    # KPIs Calculation
+    total_stats = {
+        'slots': 0,
+        'first_agendas': 0, 'first_attended': 0, 'first_noshow': 0, 'first_rescheduled': 0, 'first_canceled': 0,
+        'second_agendas': 0, 'second_attended': 0, 'second_noshow': 0, 'second_rescheduled': 0, 'second_canceled': 0,
+        'presentations': 0, 'sales_call': 0, 'sales_followup': 0,
+        'replies_booking': 0, 'replies_sales': 0, 'self_generated': 0
+    }
+    
+    for r in stats_records:
+        total_stats['slots'] += r.slots_available
+        total_stats['first_agendas'] += r.first_agendas
+        total_stats['first_attended'] += r.first_agendas_attended
+        total_stats['first_noshow'] += r.first_agendas_no_show
+        total_stats['first_rescheduled'] += r.first_agendas_rescheduled
+        total_stats['first_canceled'] += r.first_agendas_canceled
+        
+        total_stats['second_agendas'] += r.second_agendas
+        total_stats['second_attended'] += r.second_agendas_attended
+        total_stats['second_noshow'] += r.second_agendas_no_show
+        total_stats['second_rescheduled'] += r.second_agendas_rescheduled
+        total_stats['second_canceled'] += r.second_agendas_canceled
+        
+        total_stats['presentations'] += r.presentations
+        total_stats['sales_call'] += r.sales_on_call
+        total_stats['sales_followup'] += r.sales_followup
+        
+        total_stats['replies_booking'] += r.replies_booking
+        total_stats['replies_sales'] += r.replies_sales
+        total_stats['self_generated'] += r.self_generated_bookings
+
+    # Calculated Rates
+    def safe_div(n, d): return (n / d * 100) if d > 0 else 0
+    
+    kpis = {
+        'show_rate_1': safe_div(total_stats['first_attended'], total_stats['first_agendas']),
+        'show_rate_2': safe_div(total_stats['second_attended'], total_stats['second_agendas']),
+        'offer_rate': safe_div(total_stats['presentations'], total_stats['first_attended']),
+        'closing_rate': safe_div(total_stats['sales_call'] + total_stats['sales_followup'], total_stats['presentations']), # based on presentations? or total attended? usually presentations/offers
+        'total_sales': total_stats['sales_call'] + total_stats['sales_followup']
+    }
+    
+    closers = User.query.filter_by(role='closer').all()
+    
+    return render_template('admin/closer_stats.html', 
+                           stats=stats_records, 
+                           kpis=kpis, 
+                           total=total_stats,
+                           closers=closers,
+                           start_date=start_date_str,
+                           end_date=end_date_str,
+                           selected_closer=closer_id)
 
 @bp.route('/dashboard')
 @admin_required

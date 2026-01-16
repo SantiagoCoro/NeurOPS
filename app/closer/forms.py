@@ -52,3 +52,48 @@ class CloserPaymentForm(FlaskForm):
         ('failed', 'Fallido')
     ], default='completed')
     submit = SubmitField('Guardar Pago')
+
+from wtforms import IntegerField, BooleanField
+
+class CloserStatsForm(FlaskForm):
+    date = DateField('Fecha', format='%Y-%m-%d', validators=[DataRequired()])
+    
+    # Slots
+    slots_available = IntegerField('Slots Disponibles', default=0)
+    
+    # First Calls
+    first_agendas = IntegerField('Primeras Agendas', default=0)
+    first_agendas_attended = IntegerField('Primeras Asistencias', default=0)
+    first_agendas_no_show = IntegerField('No show Primeras agendas', default=0)
+    first_agendas_rescheduled = IntegerField('Reprogramaciones Primeras agendas', default=0)
+    first_agendas_canceled = IntegerField('Cancelaciones Primeras agendas', default=0)
+    
+    # Second Calls
+    second_agendas = IntegerField('Segundas Agendas', default=0)
+    second_agendas_attended = IntegerField('Segundas Asistencias', default=0)
+    second_agendas_no_show = IntegerField('No show Segundas agendas', default=0)
+    second_agendas_rescheduled = IntegerField('Reprogramaciones Segundas agendas', default=0)
+    second_agendas_canceled = IntegerField('Cancelaciones Segundas agendas', default=0)
+    
+    # Other Metrics
+    second_calls_booked = IntegerField('2th Call Agendada', default=0)
+    presentations = IntegerField('Presentaciones', default=0)
+    sales_on_call = IntegerField('Ventas en llamada', default=0)
+    sales_followup = IntegerField('Ventas en seguimiento', default=0)
+    
+    followups_started_booking = IntegerField('Seguimientos iniciados para agenda', default=0)
+    followups_started_closing = IntegerField('Seguimientos iniciados para cierre', default=0)
+    
+    replies_booking = IntegerField('Respuestas para agenda', default=0)
+    replies_sales = IntegerField('Respuestas para venta', default=0)
+    
+    self_generated_bookings = IntegerField('Agendas propias', default=0)
+    
+    # Checklist
+    notion_completed = SelectField('¿Ya completaste el Notion?', choices=[('1', 'Sí'), ('0', 'No')])
+    objection_form_completed = SelectField('¿Ya completaste el formulario de objeciones?', choices=[('1', 'Sí'), ('0', 'No')])
+    
+    win_of_day = TextAreaField('Win del día', validators=[Length(max=500)])
+    improvement_area = TextAreaField('Cosa a mejorar', validators=[Length(max=500)])
+    
+    submit = SubmitField('Guardar Reporte')

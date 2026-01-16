@@ -281,7 +281,102 @@ def update_lead_quick(id):
     flash('Cliente actualizado.')
     return redirect(url_for('closer.leads_list'))
 
-from app.closer.forms import LeadForm, AppointmentForm, SaleForm
+from app.closer.forms import SaleForm, CloserPaymentForm, LeadForm, CloserStatsForm
+from app.models import CloserDailyStats
+from app.decorators import role_required
+
+@bp.route('/closer/stats', methods=['GET', 'POST'])
+@login_required
+@role_required('closer')
+def daily_stats():
+    form = CloserStatsForm()
+    
+    # Pre-fill for today if exists
+    today = datetime.today().date()
+    stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today).first()
+    
+    if request.method == 'GET' and stats:
+        form.date.data = stats.date
+        form.slots_available.data = stats.slots_available
+        form.first_agendas.data = stats.first_agendas
+        form.first_agendas_attended.data = stats.first_agendas_attended
+        form.first_agendas_no_show.data = stats.first_agendas_no_show
+        form.first_agendas_rescheduled.data = stats.first_agendas_rescheduled
+        form.first_agendas_canceled.data = stats.first_agendas_canceled
+        
+        form.second_agendas.data = stats.second_agendas
+        form.second_agendas_attended.data = stats.second_agendas_attended
+        form.second_agendas_no_show.data = stats.second_agendas_no_show
+        form.second_agendas_rescheduled.data = stats.second_agendas_rescheduled
+        form.second_agendas_canceled.data = stats.second_agendas_canceled
+        
+        form.second_calls_booked.data = stats.second_calls_booked
+        form.presentations.data = stats.presentations
+        form.sales_on_call.data = stats.sales_on_call
+        form.sales_followup.data = stats.sales_followup
+        
+        form.followups_started_booking.data = stats.followups_started_booking
+        form.followups_started_closing.data = stats.followups_started_closing
+        
+        form.replies_booking.data = stats.replies_booking
+        form.replies_sales.data = stats.replies_sales
+        form.self_generated_bookings.data = stats.self_generated_bookings
+        
+        form.notion_completed.data = '1' if stats.notion_completed else '0'
+        form.objection_form_completed.data = '1' if stats.objection_form_completed else '0'
+        
+        form.win_of_day.data = stats.win_of_day
+        form.improvement_area.data = stats.improvement_area
+    elif request.method == 'GET':
+        form.date.data = today
+
+    if form.validate_on_submit():
+        date_input = form.date.data
+        
+        # Check if exists for date (or update existing)
+        existing = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=date_input).first()
+        if existing:
+            stats = existing
+        else:
+            stats = CloserDailyStats(closer_id=current_user.id, date=date_input)
+            db.session.add(stats)
+            
+        stats.slots_available = form.slots_available.data
+        stats.first_agendas = form.first_agendas.data
+        stats.first_agendas_attended = form.first_agendas_attended.data
+        stats.first_agendas_no_show = form.first_agendas_no_show.data
+        stats.first_agendas_rescheduled = form.first_agendas_rescheduled.data
+        stats.first_agendas_canceled = form.first_agendas_canceled.data
+        
+        stats.second_agendas = form.second_agendas.data
+        stats.second_agendas_attended = form.second_agendas_attended.data
+        stats.second_agendas_no_show = form.second_agendas_no_show.data
+        stats.second_agendas_rescheduled = form.second_agendas_rescheduled.data
+        stats.second_agendas_canceled = form.second_agendas_canceled.data
+        
+        stats.second_calls_booked = form.second_calls_booked.data
+        stats.presentations = form.presentations.data
+        stats.sales_on_call = form.sales_on_call.data
+        stats.sales_followup = form.sales_followup.data
+        
+        stats.followups_started_booking = form.followups_started_booking.data
+        stats.followups_started_closing = form.followups_started_closing.data
+        
+        stats.replies_booking = form.replies_booking.data
+        stats.replies_sales = form.replies_sales.data
+        stats.self_generated_bookings = form.self_generated_bookings.data
+        
+        stats.notion_completed = (form.notion_completed.data == '1')
+        stats.objection_form_completed = (form.objection_form_completed.data == '1')
+        
+        stats.win_of_day = form.win_of_day.data
+        stats.improvement_area = form.improvement_area.data
+        
+        db.session.commit()
+        flash('Reporte diario guardado exitosamente.', 'success')
+        return redirect(url_for('closer.daily_stats'))
+
+    return render_template('closer/daily_stats.html', form=form)
 from app.closer.utils import send_calendar_webhook
 from app.closer.utils import send_sales_webhook
 import uuid

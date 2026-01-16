@@ -309,3 +309,53 @@ class Integration(db.Model):
 
     def __repr__(self):
         return f'<Integration {self.name} ({self.active_env})>'
+class CloserDailyStats(db.Model):
+    __tablename__ = 'closer_daily_stats'
+    id = db.Column(db.Integer, primary_key=True)
+    closer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    
+    # Slots
+    slots_available = db.Column(db.Integer, default=0)
+    
+    # First Calls (Primeras Agendas)
+    first_agendas = db.Column(db.Integer, default=0)
+    first_agendas_attended = db.Column(db.Integer, default=0)
+    first_agendas_no_show = db.Column(db.Integer, default=0)
+    first_agendas_rescheduled = db.Column(db.Integer, default=0)
+    first_agendas_canceled = db.Column(db.Integer, default=0)
+    
+    # Second Calls (Segundas Agendas)
+    second_agendas = db.Column(db.Integer, default=0)
+    second_agendas_attended = db.Column(db.Integer, default=0)
+    second_agendas_no_show = db.Column(db.Integer, default=0)
+    second_agendas_rescheduled = db.Column(db.Integer, default=0)
+    second_agendas_canceled = db.Column(db.Integer, default=0)
+    
+    # Other Metrics
+    second_calls_booked = db.Column(db.Integer, default=0) # 2th Call Agendada
+    presentations = db.Column(db.Integer, default=0)
+    sales_on_call = db.Column(db.Integer, default=0)
+    sales_followup = db.Column(db.Integer, default=0)
+    
+    followups_started_booking = db.Column(db.Integer, default=0) # Seguimientos iniciados para agenda
+    followups_started_closing = db.Column(db.Integer, default=0) # Seguimientos iniciados para cierre
+    
+    replies_booking = db.Column(db.Integer, default=0) # Respuestas para agenda
+    replies_sales = db.Column(db.Integer, default=0)   # Respuestas para venta
+    
+    self_generated_bookings = db.Column(db.Integer, default=0) # Agendas propias
+    
+    # Checklist / Qualitative
+    notion_completed = db.Column(db.Boolean, default=False)
+    objection_form_completed = db.Column(db.Boolean, default=False)
+    
+    win_of_day = db.Column(db.Text)
+    improvement_area = db.Column(db.Text)
+    
+    closer = db.relationship('User', backref=db.backref('daily_stats', lazy='dynamic'))
+
+    __table_args__ = (db.UniqueConstraint('closer_id', 'date', name='_closer_date_uc'),)
+
+    def __repr__(self):
+        return f'<CloserDailyStats {self.closer_id} on {self.date}>'
