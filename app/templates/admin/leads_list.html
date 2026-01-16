@@ -8,7 +8,7 @@
         <!-- KPI Cards -->
         <!-- KPI Cards -->
         <!-- KPI Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <!-- Total Card (Small) -->
             <div
                 class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex flex-col justify-center items-center relative overflow-hidden group hover:shadow-md transition-shadow">
@@ -82,23 +82,28 @@
                 </div>
             </div>
 
-            <!-- Programs Card -->
+        </div>
+
+        <!-- Programs Row (Moved from top grid) -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
             <div
-                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-1 hover:shadow-md transition-shadow">
-                <div class="flex items-center justify-between mb-3 border-b border-gray-50 pb-2">
-                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest">Inscripciones</span>
-                    <i class="fas fa-graduation-cap text-gray-300"></i>
-                </div>
-                <!-- Dynamic Grid for Programs -->
-                <div id="kpi-programs-list" class="flex flex-col gap-1 max-h-24 overflow-y-auto custom-scrollbar">
+                class="bg-white rounded-xl shadow-sm p-5 border border-gray-100 md:col-span-4 hover:shadow-md transition-shadow">
+                <div id="kpi-programs-list" class="flex items-center gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                    <span
+                        class="text-gray-400 text-xs font-bold uppercase tracking-widest flex-shrink-0">Inscripciones:</span>
                     {% for prog, count in kpis.programs.items() %}
                     <div
-                        class="flex justify-between items-center text-xs p-1 hover:bg-gray-50 rounded transition-colors">
-                        <span class="text-gray-600 truncate flex-1 min-w-0 mr-2" title="{{ prog }}">{{ prog }}</span>
-                        <span class="font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">{{ count }}</span>
+                        class="flex items-center bg-gray-50 rounded-full px-3 py-1 flex-shrink-0 border border-gray-100">
+                        <span class="w-2 h-2 rounded-full mr-2 bg-indigo-400"></span>
+                        <span class="capitalize text-gray-600 text-xs mr-2">{{ prog }}</span>
+                        <span class="font-bold text-gray-800 text-xs">{{ count }}</span>
+                        {% if kpis.total_programs > 0 %}
+                        <span class="text-[10px] text-gray-400 ml-1">({{ (count / kpis.total_programs * 100)|round|int
+                            }}%)</span>
+                        {% endif %}
                     </div>
                     {% else %}
-                    <div class="text-center text-xs text-gray-400 py-2">Sin datos</div>
+                    <div class="text-xs text-gray-400">Sin datos</div>
                     {% endfor %}
                 </div>
             </div>
@@ -123,6 +128,10 @@
                             {% else %}bg-gray-400{% endif %}"></span>
                         <span class="capitalize text-gray-600 text-xs mr-2">{{ status or 'Sin estado' }}</span>
                         <span class="font-bold text-gray-800 text-xs">{{ count }}</span>
+                        {% if kpis.total_statuses > 0 %}
+                        <span class="text-[10px] text-gray-400 ml-1">({{ (count / kpis.total_statuses * 100)|round|int
+                            }}%)</span>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>

@@ -633,10 +633,16 @@ def leads_list():
     # Revenue (Projected) = Cash Collect + Debt
     projected_revenue = cash_collected + total_debt
 
+    # Calculate Totals for Percentages
+    total_statuses_count = sum(c[1] for c in status_counts)
+    total_programs_count = sum(c[1] for c in program_counts)
+
     kpis = {
         'total': total_users,
         'statuses': dict(status_counts),
         'programs': dict(program_counts),
+        'total_statuses': total_statuses_count,
+        'total_programs': total_programs_count,
         'revenue': total_revenue, # Gross
         'debt': total_debt,
         'commission': total_commission,
