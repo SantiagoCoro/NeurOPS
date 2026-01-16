@@ -38,6 +38,8 @@
         <span class="text-gray-400 text-xs">-</span>
         {% endif %}
     </td>
+    <!-- Rol Column Removed from Body -->
+
     <!-- Financial Info -->
     <td class="px-6 py-4 text-right text-sm">
         <span class="text-green-600 font-bold">${{ "{:,.0f}".format(lead.total_lifetime_paid)
@@ -55,14 +57,13 @@
     <td class="px-6 py-4">
         {% if lead.lead_profile %}
         <form action="{{ url_for('admin.update_lead_quick', id=lead.id) }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <select name="status" onchange="this.form.submit()" class="text-xs rounded-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 py-1 pl-2 pr-6 font-bold cursor-pointer hover:bg-opacity-80
-                {% if lead.lead_profile.status == 'new' %}bg-gray-100 text-gray-600
-                {% elif lead.lead_profile.status == 'pending' %}bg-yellow-100 text-yellow-700
-                {% elif lead.lead_profile.status == 'completed' %}bg-green-100 text-green-700
-                {% elif lead.lead_profile.status == 'renewed' %}bg-purple-100 text-purple-700
-                {% elif lead.lead_profile.status == 'canceled' %}bg-red-100 text-red-700
-                {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {% if lead.lead_profile.status == 'new' %}bg-gray-100 text-gray-600
+            {% elif lead.lead_profile.status == 'pending' %}bg-yellow-100 text-yellow-700
+            {% elif lead.lead_profile.status == 'completed' %}bg-green-100 text-green-700
+            {% elif lead.lead_profile.status == 'renewed' %}bg-purple-100 text-purple-700
+            {% elif lead.lead_profile.status == 'canceled' %}bg-red-100 text-red-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
                 <option value="new" {% if lead.lead_profile.status=='new' %}selected{% endif %}>
                     Nuevo</option>
                 <option value="pending" {% if lead.lead_profile.status=='pending' %}selected{% endif %}>Pendiente

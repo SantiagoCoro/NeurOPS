@@ -391,7 +391,7 @@ def leads_list():
     has_args = any(key in request.args for key in relevant_keys)
     
     # Check if we are paginating or loading more (in which case we shouldn't force-reload from DB, but we SHOULD save context if present)
-    is_paginating = request.args.get('page') or request.args.get('load_more')
+    is_paginating = request.args.get('page') or request.args.get('load_more') or request.args.get('ajax')
 
     if has_args:
         # Save current state
@@ -479,6 +479,12 @@ def leads_list():
         search_term = f"%{search}%"
         kpi_query = kpi_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
         
+    if status_filter:
+        kpi_query = kpi_query.join(LeadProfile, User.id == LeadProfile.user_id).filter(LeadProfile.status == status_filter)
+        
+    if program_filter:
+        kpi_query = kpi_query.join(Enrollment, Enrollment.student_id == User.id).filter(Enrollment.program_id == program_filter)
+        
     total_users = kpi_query.count()
     
     # Statuses KPI
@@ -500,7 +506,7 @@ def leads_list():
     if start_date_str: fin_query = fin_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
     if end_date_str: fin_query = fin_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
     if search: fin_query = fin_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
-    if status_filter: fin_query = fin_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if status_filter: fin_query = fin_query.join(LeadProfile, LeadProfile.user_id == User.id).filter(LeadProfile.status == status_filter)
     if program_filter: fin_query = fin_query.filter(Enrollment.program_id == program_filter)
     
     total_revenue = fin_query.scalar() or 0.0
@@ -516,7 +522,7 @@ def leads_list():
     if start_date_str: comm_query = comm_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
     if end_date_str: comm_query = comm_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
     if search: comm_query = comm_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
-    if status_filter: comm_query = comm_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if status_filter: comm_query = comm_query.join(LeadProfile, LeadProfile.user_id == User.id).filter(LeadProfile.status == status_filter)
     if program_filter: comm_query = comm_query.filter(Enrollment.program_id == program_filter)
     
     total_commission = comm_query.scalar() or 0.0
@@ -533,7 +539,7 @@ def leads_list():
     if start_date_str: enr_query = enr_query.filter(User.created_at >= datetime.strptime(start_date_str, '%Y-%m-%d'))
     if end_date_str: enr_query = enr_query.filter(User.created_at < datetime.strptime(end_date_str, '%Y-%m-%d') + timedelta(days=1))
     if search: enr_query = enr_query.filter(or_(User.username.ilike(search_term), User.email.ilike(search_term)))
-    if status_filter: enr_query = enr_query.join(LeadProfile).filter(LeadProfile.status == status_filter)
+    if status_filter: enr_query = enr_query.join(LeadProfile, LeadProfile.user_id == User.id).filter(LeadProfile.status == status_filter)
     if program_filter: enr_query = enr_query.filter(Enrollment.program_id == program_filter)
     
     active_enrollments = enr_query.all()
@@ -573,7 +579,21 @@ def leads_list():
     all_statuses = db.session.query(LeadProfile.status).distinct().filter(LeadProfile.status != None).all()
     all_statuses = [s[0] for s in all_statuses]
 
+    if request.args.get('ajax'):
+        return jsonify({
+            'html': render_template('admin/partials/leads_rows.html', leads=leads, start_index=start_index),
+            'kpis': kpis,
+            'has_next': pagination.has_next
+        })
+
     if is_load_more:
+        # Keep returning plain HTML for legacy load_more script for now, 
+        # but optimally we should switch load_more to use the JSON endpoint too.
+        # However, to avoid breaking 'loadMoreBtn' logic which expects HTML in .then(text => ...), 
+        # I will leave this as is OR update the JS to handle JSON.
+        # The JS I saw in sales_list handled JSON? No, the sales_list JS I wrote previously used .text() for load more?
+        # Let's check leads_list JS. It uses .text().
+        # So for load_more, return HTML. For filter (ajax=1), return JSON.
         return render_template('admin/partials/leads_rows.html', leads=leads, start_index=start_index)
 
     # Closers for bulk assign
