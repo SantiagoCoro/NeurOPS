@@ -764,7 +764,8 @@ def search_leads():
         
     search = f"%{query}%"
     # Join with LeadProfile to search phone/instagram
-    leads = User.query.outerjoin(LeadProfile).filter(
+    # Explicit join condition to avoid ambiguity or SQLAlchemy errors
+    leads = User.query.outerjoin(LeadProfile, User.id == LeadProfile.user_id).filter(
         User.role == 'lead',
         or_(
             User.username.ilike(search),

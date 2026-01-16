@@ -100,7 +100,22 @@ def contact_view():
         
         if not user:
             temp_pass = str(uuid.uuid4())
-            user = User(username=name or email.split('@')[0], email=email, role='lead')
+            base_username = email
+            if len(base_username) > 64:
+                base_username = base_username[:64]
+            
+            username = base_username
+            # Ensure uniqueness
+            while User.query.filter_by(username=username).first():
+                import random
+                suffix = f"_{random.randint(1000, 9999)}"
+                # Ensure suffix fits
+                if len(base_username) + len(suffix) > 64:
+                    username = base_username[:64-len(suffix)] + suffix
+                else:
+                    username = base_username + suffix
+            
+            user = User(username=username, email=email, role='lead')
             user.set_password(temp_pass)
             db.session.add(user)
             db.session.flush()
