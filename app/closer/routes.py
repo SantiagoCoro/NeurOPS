@@ -644,7 +644,7 @@ def dashboard():
     next_calls = Appointment.query.filter(
         Appointment.closer_id == current_user.id,
         Appointment.start_time > datetime.utcnow(),
-        Appointment.status != 'canceled'
+        Appointment.status == 'scheduled'
     ).order_by(Appointment.start_time).limit(5).all()
     
     # Active Events for Links
@@ -708,7 +708,8 @@ def dashboard():
                            top_debtors=top_debtors,
                            monthly_sales=monthly_sales,
                            closing_rate=closing_rate,
-                           pytz=pytz)
+                           pytz=pytz,
+                           datetime=datetime)
 
 @bp.route('/calendar', methods=['GET'])
 @closer_required
@@ -738,13 +739,15 @@ def calendar():
         Appointment.status != 'canceled'
     ).all()
     
+    import pytz # Explicit import needed
     return render_template('closer/calendar.html', 
-                           availabilities=availabilities, 
-                           appointments=appointments,
-                           week_dates=match_dates,
+                           week_dates=match_dates, 
                            week_offset=week_offset,
+                           availabilities=availabilities,
+                           appointments=appointments,
                            today=today,
-                           now=datetime.now())
+                           now=datetime.now(),
+                           pytz=pytz)
 
 @bp.route('/calendar/update', methods=['POST'])
 @closer_required

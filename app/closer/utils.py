@@ -57,7 +57,9 @@ def send_calendar_webhook(appointment, action, old_start_time=None):
         'event_name': appointment.event.name if appointment.event else 'General',
         'utm_source': lead_profile.utm_source if lead_profile else 'direct',
         # Changes
-        'old_start_time': f"{old_start_time.isoformat()}Z" if old_start_time else None
+        'old_start_time': f"{old_start_time.isoformat()}Z" if old_start_time else None,
+        # Helper for Event Title
+        'summary': f"{lead.username} y {closer.username}"
     }
 
     try:

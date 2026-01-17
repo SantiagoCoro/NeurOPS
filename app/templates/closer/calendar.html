@@ -126,8 +126,10 @@
                         has_appt=false) %} {# Check Availabilities #} {% for a in availabilities %} {% if
                         a.date|string==current_date|string and a.start_time.hour==hour %} {% set ns.booked=true %} {%
                         endif %} {% endfor %} {# Check Appointments (Agendados) #} {% for appt in appointments %} {#
-                        Comparation logic: appt.start_time is datetime #} {% if
-                        appt.start_time.date()|string==current_date|string and appt.start_time.hour==hour %} {% set
+                        Convert UTC DB time to Closer Local Time #} {% set tz=pytz.timezone(current_user.timezone
+                        or 'America/La_Paz' ) %} {# Ensure UTC awareness before conversion #} {% set
+                        local_start=appt.start_time.replace(tzinfo=pytz.utc).astimezone(tz) %} {% if
+                        local_start.date()|string==current_date|string and local_start.hour==hour %} {% set
                         ns.has_appt=true %} {% endif %} {% endfor %} <div
                         class="border-r border-gray-100 relative h-10 slot-cell 
                              {% if is_past %} bg-gray-200 cursor-not-allowed opacity-50

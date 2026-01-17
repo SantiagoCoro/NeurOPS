@@ -104,8 +104,10 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h4 class="font-bold text-gray-800 mb-4 flex justify-between items-center">
                     Próximas Llamadas
-                    <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">Hora Bolivia
-                        (GMT-4)</span>
+                    <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {% set user_tz = pytz.timezone(current_user.timezone or 'America/La_Paz') %}
+                        {{ current_user.timezone or 'America/La_Paz' }} ({{ datetime.now(user_tz).strftime('%Z %z') }})
+                    </span>
                 </h4>
                 {% if next_calls %}
                 <div class="divide-y divide-gray-100">
