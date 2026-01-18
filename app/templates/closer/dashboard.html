@@ -110,7 +110,6 @@
                     </span>
                 </h4>
                 {% if next_calls %}
-                {% if next_calls %}
                 <ul class="divide-y divide-gray-100">
                     {% for call in next_calls %}
                     {% set tz = pytz.timezone(current_user.timezone or 'America/La_Paz') %}
