@@ -43,18 +43,22 @@
             </div>
 
             <!-- Totals Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <dt class="text-sm font-medium text-gray-500 truncate">Ventas Totales</dt>
                     <dd class="mt-1 text-3xl font-bold text-gray-900">{{ total_sales }}</dd>
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <dt class="text-sm font-medium text-gray-500 truncate">Cash Collected</dt>
-                    <dd class="mt-1 text-3xl font-bold text-green-600">${{ ":,.2f".format(total_cash) }}</dd>
+                    <dd class="mt-1 text-3xl font-bold text-green-600">${{ ":,.0f".format(total_cash) }}</dd>
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <dt class="text-sm font-medium text-gray-500 truncate">Llamadas (Completed)</dt>
                     <dd class="mt-1 text-3xl font-bold text-blue-600">{{ total_calls }}</dd>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Tasa de Cierre</dt>
+                    <dd class="mt-1 text-3xl font-bold text-purple-600">{{ "%.1f"|format(closing_rate) }}%</dd>
                 </div>
             </div>
 
@@ -69,10 +73,15 @@
                                     Fecha / Closer</th>
 
                                 <!-- KPIs -->
+                                <!-- KPIs -->
                                 <th
                                     class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-blue-50">
-                                    Llamadas<br><span class="text-[10px] lowercase text-blue-400">(Sch / OK / No)</span>
+                                    Llamadas<br><span class="text-[10px] lowercase text-blue-400">Sch / OK / No /
+                                        Can</span>
                                 </th>
+                                <th
+                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-purple-50">
+                                    Cierre %</th>
                                 <th
                                     class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-green-50">
                                     Ventas</th>
@@ -115,7 +124,16 @@
                                         <span title="Scheduled" class="font-bold">{{ stat.calls_scheduled }}</span> /
                                         <span title="Completed" class="text-green-600 font-bold">{{ stat.calls_completed
                                             }}</span> /
-                                        <span title="No Show" class="text-orange-500">{{ stat.calls_no_show }}</span>
+                                        <span title="No Show" class="text-orange-500">{{ stat.calls_no_show }}</span> /
+                                        <span title="Canceled" class="text-red-400">{{ stat.calls_canceled }}</span>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-center whitespace-nowrap bg-purple-50/30">
+                                    {% set rate = (stat.sales_count / stat.calls_completed * 100) if
+                                    stat.calls_completed > 0 else 0 %}
+                                    <span
+                                        class="text-sm font-bold {{ 'text-purple-600' if rate >= 15 else 'text-gray-500' }}">
+                                        {{ "%.0f"|format(rate) }}%
                                     </span>
                                 </td>
                                 <td class="px-4 py-4 text-center whitespace-nowrap bg-green-50/30">
@@ -136,8 +154,8 @@
                                 <!-- Dynamic Answers -->
                                 {% for q in questions %}
                                 {% set ans = stat.answers.filter_by(question_id=q.id).first() %}
-                                <td
-                                    class="px-6 py-4 text-sm text-gray-600 border-l border-gray-100 min-w-[200px] break-words">
+                                <td class="px-6 py-4 text-sm text-gray-600 border-l border-gray-100 min-w-[150px] max-w-[250px] truncate"
+                                    title="{{ ans.answer if ans else '' }}">
                                     {% if ans %}
                                     {{ ans.answer }}
                                     {% else %}
