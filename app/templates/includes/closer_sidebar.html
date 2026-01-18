@@ -67,10 +67,11 @@
         <div class="h-px bg-slate-800 my-2 mx-2" x-show="!expanded"></div>
 
         <!-- Daily Stats -->
-        <a href="{{ url_for('closer.daily_stats') }}" data-tooltip="Reporte Diario"
+        <!-- Daily Stats -->
+        <a href="{{ url_for('closer.daily_report') }}" data-tooltip="Reporte Diario"
             class="flex items-center gap-3 p-2 rounded transition-colors duration-200 group relative"
             :class="expanded ? 'justify-start' : 'justify-center'"
-            class="{% if request.endpoint == 'closer.daily_stats' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
+            class="{% if request.endpoint == 'closer.daily_report' %}bg-indigo-900/50 text-indigo-300 border-l-2 border-indigo-500{% else %}hover:bg-slate-800{% endif %}">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 flex-shrink-0" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

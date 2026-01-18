@@ -281,102 +281,140 @@ def update_lead_quick(id):
     flash('Cliente actualizado.')
     return redirect(url_for('closer.leads_list'))
 
+import pytz
+from datetime import time
 from app.closer.forms import SaleForm, CloserPaymentForm, LeadForm, CloserStatsForm
-from app.models import CloserDailyStats
+from app.models import CloserDailyStats, DailyReportQuestion, DailyReportAnswer
 from app.decorators import role_required
 
-@bp.route('/closer/stats', methods=['GET', 'POST'])
-@login_required
-@role_required('closer')
-def daily_stats():
-    form = CloserStatsForm()
+@bp.route('/daily_report', methods=['GET', 'POST'])
+@closer_required
+def daily_report():
+    # Timezone handling
+    tz_name = current_user.timezone or 'America/La_Paz'
+    try:
+        user_tz = pytz.timezone(tz_name)
+    except:
+        user_tz = pytz.timezone('America/La_Paz')
+        
+    now_local = datetime.now(user_tz)
+    today_local = now_local.date()
     
-    # Pre-fill for today if exists
-    today = datetime.today().date()
-    stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today).first()
+    # --- Automated KPI Calculation (Live for Today) ---
+    start_local = user_tz.localize(datetime.combine(today_local, time.min))
+    end_local = user_tz.localize(datetime.combine(today_local, time.max))
     
-    if request.method == 'GET' and stats:
-        form.date.data = stats.date
-        form.slots_available.data = stats.slots_available
-        form.first_agendas.data = stats.first_agendas
-        form.first_agendas_attended.data = stats.first_agendas_attended
-        form.first_agendas_no_show.data = stats.first_agendas_no_show
-        form.first_agendas_rescheduled.data = stats.first_agendas_rescheduled
-        form.first_agendas_canceled.data = stats.first_agendas_canceled
-        
-        form.second_agendas.data = stats.second_agendas
-        form.second_agendas_attended.data = stats.second_agendas_attended
-        form.second_agendas_no_show.data = stats.second_agendas_no_show
-        form.second_agendas_rescheduled.data = stats.second_agendas_rescheduled
-        form.second_agendas_canceled.data = stats.second_agendas_canceled
-        
-        form.second_calls_booked.data = stats.second_calls_booked
-        form.presentations.data = stats.presentations
-        form.sales_on_call.data = stats.sales_on_call
-        form.sales_followup.data = stats.sales_followup
-        
-        form.followups_started_booking.data = stats.followups_started_booking
-        form.followups_started_closing.data = stats.followups_started_closing
-        
-        form.replies_booking.data = stats.replies_booking
-        form.replies_sales.data = stats.replies_sales
-        form.self_generated_bookings.data = stats.self_generated_bookings
-        
-        form.notion_completed.data = '1' if stats.notion_completed else '0'
-        form.objection_form_completed.data = '1' if stats.objection_form_completed else '0'
-        
-        form.win_of_day.data = stats.win_of_day
-        form.improvement_area.data = stats.improvement_area
-    elif request.method == 'GET':
-        form.date.data = today
+    start_utc = start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    end_utc = end_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    # 1. Calls
+    appointments_today = Appointment.query.filter(
+        Appointment.closer_id == current_user.id,
+        Appointment.start_time >= start_utc,
+        Appointment.start_time <= end_utc
+    ).all()
+    
+    kpi_scheduled = len(appointments_today)
+    kpi_completed = sum(1 for a in appointments_today if a.status == 'completed')
+    kpi_no_show = sum(1 for a in appointments_today if a.status == 'no_show')
+    kpi_canceled = sum(1 for a in appointments_today if a.status == 'canceled')
 
-    if form.validate_on_submit():
-        date_input = form.date.data
+    # 2. Sales & Cash
+    # Filter payments made today on enrollments owned by this closer
+    # Need to be careful: Enrollment closer_id vs Payment Date
+    # We want "Cash Collected Today" by this closer. 
+    # Usually strictly payments received today, on enrollments assigned to this closer.
+    
+    payments_today = Payment.query.join(Enrollment).filter(
+        Enrollment.closer_id == current_user.id,
+        Payment.date >= start_utc,
+        Payment.date <= end_utc,
+        Payment.status == 'completed'
+    ).all()
+    
+    kpi_sales_count = 0
+    kpi_sales_amount = 0.0 # Total agreed value of sales made today (Enrollments created today)
+    kpi_cash_collected = 0.0 # Actual money received today
+    
+    # Sales Count = New Enrollments Today
+    new_enrollments = Enrollment.query.filter(
+        Enrollment.closer_id == current_user.id,
+        Enrollment.enrollment_date >= start_utc,
+        Enrollment.enrollment_date <= end_utc,
+        Enrollment.status != 'dropped'
+    ).all()
+    
+    kpi_sales_count = len(new_enrollments)
+    kpi_sales_amount = sum(e.total_agreed for e in new_enrollments)
+    
+    # Cash Collected
+    kpi_cash_collected = sum(p.amount for p in payments_today)
+
+    # --- Questions ---
+    questions = DailyReportQuestion.query.filter_by(is_active=True).order_by(DailyReportQuestion.order).all()
+    
+    # Check if report exists for today
+    today_stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today_local).first()
+    
+    if request.method == 'POST':
+        if not today_stats:
+            today_stats = CloserDailyStats(closer_id=current_user.id, date=today_local)
+            db.session.add(today_stats)
         
-        # Check if exists for date (or update existing)
-        existing = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=date_input).first()
-        if existing:
-            stats = existing
-        else:
-            stats = CloserDailyStats(closer_id=current_user.id, date=date_input)
-            db.session.add(stats)
+        # Update/Save Automated KPIs (Snapshot)
+        today_stats.calls_scheduled = kpi_scheduled
+        today_stats.calls_completed = kpi_completed
+        today_stats.calls_no_show = kpi_no_show
+        today_stats.calls_canceled = kpi_canceled
+        today_stats.sales_count = kpi_sales_count
+        today_stats.sales_amount = kpi_sales_amount
+        today_stats.cash_collected = kpi_cash_collected
+        
+        # Manual Metrics (Legacy) - kept generic if form has them? 
+        # For now, user only asked to replace manual with automated and use questions for rest.
+        # Only self_generated_bookings remains 'manual' if not trackable.
+        # We can accept it from form if present, else 0.
+        today_stats.self_generated_bookings = request.form.get('self_generated_bookings', 0, type=int)
+
+        db.session.commit() # Save stats to get ID
+        
+        # Save Answers
+        # Clear old answers for this report to avoid duplicates if re-submitting?
+        # Or just update. Simpler to delete old for this day/question set.
+        current_answers = DailyReportAnswer.query.filter_by(daily_stats_id=today_stats.id).all()
+        for ans in current_answers:
+            db.session.delete(ans)
             
-        stats.slots_available = form.slots_available.data
-        stats.first_agendas = form.first_agendas.data
-        stats.first_agendas_attended = form.first_agendas_attended.data
-        stats.first_agendas_no_show = form.first_agendas_no_show.data
-        stats.first_agendas_rescheduled = form.first_agendas_rescheduled.data
-        stats.first_agendas_canceled = form.first_agendas_canceled.data
-        
-        stats.second_agendas = form.second_agendas.data
-        stats.second_agendas_attended = form.second_agendas_attended.data
-        stats.second_agendas_no_show = form.second_agendas_no_show.data
-        stats.second_agendas_rescheduled = form.second_agendas_rescheduled.data
-        stats.second_agendas_canceled = form.second_agendas_canceled.data
-        
-        stats.second_calls_booked = form.second_calls_booked.data
-        stats.presentations = form.presentations.data
-        stats.sales_on_call = form.sales_on_call.data
-        stats.sales_followup = form.sales_followup.data
-        
-        stats.followups_started_booking = form.followups_started_booking.data
-        stats.followups_started_closing = form.followups_started_closing.data
-        
-        stats.replies_booking = form.replies_booking.data
-        stats.replies_sales = form.replies_sales.data
-        stats.self_generated_bookings = form.self_generated_bookings.data
-        
-        stats.notion_completed = (form.notion_completed.data == '1')
-        stats.objection_form_completed = (form.objection_form_completed.data == '1')
-        
-        stats.win_of_day = form.win_of_day.data
-        stats.improvement_area = form.improvement_area.data
+        for q in questions:
+            ans_text = request.form.get(f'question_{q.id}')
+            if q.question_type == 'boolean':
+                # Checkbox sends 'on' or nothing.
+                ans_text = 'Sí' if request.form.get(f'question_{q.id}') else 'No'
+            
+            if ans_text:
+                new_ans = DailyReportAnswer(
+                    daily_stats_id=today_stats.id,
+                    question_id=q.id,
+                    answer=str(ans_text)
+                )
+                db.session.add(new_ans)
         
         db.session.commit()
-        flash('Reporte diario guardado exitosamente.', 'success')
-        return redirect(url_for('closer.daily_stats'))
+        flash('Reporte diario guardado exitosamente.')
+        return redirect(url_for('closer.dashboard'))
 
-    return render_template('closer/daily_stats.html', form=form)
+    return render_template('closer/daily_report.html', 
+                           questions=questions,
+                           kpi_scheduled=kpi_scheduled,
+                           kpi_completed=kpi_completed,
+                           kpi_no_show=kpi_no_show,
+                           kpi_canceled=kpi_canceled,
+                           kpi_sales_count=kpi_sales_count,
+                           kpi_sales_amount=kpi_sales_amount,
+                           kpi_cash_collected=kpi_cash_collected,
+                           today_stats=today_stats, # Pass existing to pre-fill if needed (though we wipe answers on save, keeping UI simple)
+                           today=today_local
+                           )
 from app.closer.utils import send_calendar_webhook
 from app.closer.utils import send_sales_webhook
 import uuid

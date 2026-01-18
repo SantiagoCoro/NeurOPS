@@ -4,7 +4,7 @@ from app.admin import bp
 from app.admin.forms import UserForm, SurveyQuestionForm, EventForm, ProgramForm, PaymentMethodForm, ClientEditForm, PaymentForm, ExpenseForm, RecurringExpenseForm, EventGroupForm, ManualAddForm, AdminSaleForm
 from app.closer.forms import SaleForm, LeadForm
 from app.closer.utils import send_sales_webhook
-from app.models import User, CloserDailyStats, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup, UserViewSetting, Integration 
+from app.models import User, CloserDailyStats, SurveyQuestion, Event, Program, PaymentMethod, db, Enrollment, Payment, Appointment, LeadProfile, Expense, RecurringExpense, EventGroup, UserViewSetting, Integration, DailyReportQuestion 
 from datetime import datetime, date, time, timedelta
 from sqlalchemy import or_
 from app.decorators import role_required
@@ -146,13 +146,19 @@ def dashboard():
     cash_collected_month = income_month - total_commission_month
     
     # Calculate Closer Commissions (10% of Net Cash from Assigned Sales)
-    # Re-iterate payments (efficient enough) or accumulate in previous loop
-    # Let's re-iterate to be clean or optimize previous loop.
-    # Actually, previous loop needs access to enrollment.
-    # Let's assume we can access p.enrollment efficiently (SQLAlchemy lazy load or we join).
-    # Since we didn't join in query, it might be N+1. 
-    # Let's optimize the query first.
-    
+    # Calculate Closer Commissions (10% of Net Cash from Assigned Sales)
+    # Re-iterate payments (efficient enough)
+    closer_commissions_month = 0
+    for p in payments_month:
+        if p.enrollment and p.enrollment.closer_id:
+             # Net amount for this payment
+            p_amount = p.amount
+            if p.method:
+                p_fee = (p.amount * (p.method.commission_percent / 100)) + p.method.commission_fixed
+                p_amount -= p_fee
+            
+            # 10% Commission
+            closer_commissions_month += (p_amount * 0.10)
     # 2. Expenses and Net Profit (Selected Period)
     total_expenses = db.session.query(db.func.sum(Expense.amount)).filter(
         Expense.date >= start_dt,
@@ -1444,7 +1450,54 @@ def create_program():
             db.session.rollback()
             flash('Error: El nombre del programa ya existe.')
             
-    return render_template('admin/program_form.html', form=form, title="Nuevo Programa")
+@bp.route('/stats/closer')
+@admin_required
+def stats_closer():
+    today = date.today()
+    
+    # Filters
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    closer_id = request.args.get('closer_id')
+    
+    if start_date_str:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    else:
+        start_date = today.replace(day=1)
+        
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    else:
+        end_date = today
+        
+    # Query Stats
+    query = CloserDailyStats.query.filter(
+        CloserDailyStats.date >= start_date,
+        CloserDailyStats.date <= end_date
+    ).order_by(CloserDailyStats.date.desc())
+    
+    if closer_id:
+        query = query.filter(CloserDailyStats.closer_id == closer_id)
+        
+    stats = query.all()
+    
+    # Totals (Aggregations)
+    total_sales = sum(s.sales_count for s in stats)
+    total_cash = sum(s.cash_collected for s in stats)
+    total_calls = sum(s.calls_completed for s in stats)
+    
+    closers = User.query.filter_by(role='closer').all()
+    questions = DailyReportQuestion.query.order_by(DailyReportQuestion.order).all()
+
+    return render_template('admin/stats_closer.html', 
+                           stats=stats, 
+                           total_sales=total_sales,
+                           total_cash=total_cash,
+                           total_calls=total_calls,
+                           closers=closers,
+                           questions=questions,
+                           start_date=start_date,
+                           end_date=end_date)
 
 @bp.route('/programs/edit/<int:id>', methods=['GET', 'POST'])
 @admin_required
@@ -2366,3 +2419,83 @@ def database_schema():
                 mermaid_str += f"    {t_label_target} ||--o{{ {t_label_source} : \"tiene\"\n"
     
     return render_template('admin/database.html', mermaid_chart=mermaid_str)
+
+# --- Daily Report Questions Management ---
+
+@bp.route('/questions')
+@login_required
+def daily_report_questions():
+    if current_user.role != 'admin':
+        flash('Acceso denegado.')
+        return redirect(url_for('admin.dashboard'))
+    questions = DailyReportQuestion.query.order_by(DailyReportQuestion.order).all()
+    return render_template('admin/questions_list.html', questions=questions)
+
+@bp.route('/questions/new', methods=['POST'])
+@login_required
+def create_daily_report_question():
+    if current_user.role != 'admin': return {'status': 'error'}, 403
+    
+    text = request.form.get('text')
+    q_type = request.form.get('type', 'text')
+    
+    if not text:
+        flash('El texto es obligatorio.')
+        return redirect(url_for('admin.daily_report_questions'))
+        
+    max_order = db.session.query(db.func.max(DailyReportQuestion.order)).scalar() or 0
+    
+    q = DailyReportQuestion(text=text, question_type=q_type, order=max_order + 1)
+    db.session.add(q)
+    db.session.commit()
+    flash('Pregunta creada.')
+    return redirect(url_for('admin.daily_report_questions'))
+
+@bp.route('/questions/edit/<int:id>', methods=['POST'])
+@login_required
+def edit_daily_report_question(id):
+    if current_user.role != 'admin': return {'status': 'error'}, 403
+    
+    q = DailyReportQuestion.query.get_or_404(id)
+    text = request.form.get('text')
+    q_type = request.form.get('type')
+    
+    if text:
+        q.text = text
+    if q_type:
+        q.question_type = q_type
+        
+    db.session.commit()
+    flash('Pregunta actualizada.')
+    return redirect(url_for('admin.daily_report_questions'))
+
+@bp.route('/questions/toggle/<int:id>')
+@login_required
+def toggle_daily_report_question(id):
+    if current_user.role != 'admin': return {'status': 'error'}, 403
+    q = DailyReportQuestion.query.get_or_404(id)
+    q.is_active = not q.is_active
+    db.session.commit()
+    return redirect(url_for('admin.daily_report_questions'))
+
+@bp.route('/questions/delete/<int:id>')
+@login_required
+def delete_daily_report_question(id):
+    if current_user.role != 'admin': return {'status': 'error'}, 403
+    q = DailyReportQuestion.query.get_or_404(id)
+    db.session.delete(q)
+    db.session.commit()
+    flash('Pregunta eliminada.')
+    return redirect(url_for('admin.daily_report_questions'))
+
+@bp.route('/questions/reorder', methods=['POST'])
+@login_required
+def reorder_daily_report_questions():
+    if current_user.role != 'admin': return {'status': 'error'}, 403
+    order_data = request.json.get('order', []) # List of ID
+    for idx, q_id in enumerate(order_data):
+        q = DailyReportQuestion.query.get(q_id)
+        if q:
+            q.order = idx + 1
+    db.session.commit()
+    return {'status': 'success'}

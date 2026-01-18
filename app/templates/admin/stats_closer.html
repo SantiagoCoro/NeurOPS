@@ -1,0 +1,164 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+    {% include "includes/admin_sidebar.html" %}
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50">
+        <div class="px-6 py-8">
+            <!-- Header & Filters -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Estadísticas de Closers</h1>
+                    <p class="text-sm text-gray-500 mt-1">Reportes diarios (KPIs y Cualitativos)</p>
+                </div>
+
+                <form class="flex flex-wrap gap-2 items-end bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Inicio</label>
+                        <input type="date" name="start_date" value="{{ start_date }}"
+                            class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Fin</label>
+                        <input type="date" name="end_date" value="{{ end_date }}"
+                            class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Closer</label>
+                        <select name="closer_id"
+                            class="text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                            <option value="">Todos</option>
+                            {% for c in closers %}
+                            <option value="{{ c.id }}" {% if request.args.get('closer_id')|int==c.id %}selected{% endif
+                                %}>{{
+                                c.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors">
+                        Filtrar
+                    </button>
+                </form>
+            </div>
+
+            <!-- Totals Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Ventas Totales</dt>
+                    <dd class="mt-1 text-3xl font-bold text-gray-900">{{ total_sales }}</dd>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Cash Collected</dt>
+                    <dd class="mt-1 text-3xl font-bold text-green-600">${{ ":,.2f".format(total_cash) }}</dd>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Llamadas (Completed)</dt>
+                    <dd class="mt-1 text-3xl font-bold text-blue-600">{{ total_calls }}</dd>
+                </div>
+            </div>
+
+            <!-- Consolidated Table -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-200">
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">
+                                    Fecha / Closer</th>
+
+                                <!-- KPIs -->
+                                <th
+                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-blue-50">
+                                    Llamadas<br><span class="text-[10px] lowercase text-blue-400">(Sch / OK / No)</span>
+                                </th>
+                                <th
+                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-green-50">
+                                    Ventas</th>
+                                <th
+                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-green-50">
+                                    Cash</th>
+
+                                <!-- Manual Legacy -->
+                                <th
+                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center text-[10px]">
+                                    Self-Gen</th>
+
+                                <!-- Dynamic Questions Headers -->
+                                {% for q in questions %}
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px] border-l border-gray-100">
+                                    {{ q.text|truncate(30) }}
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            {% for stat in stats %}
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td
+                                    class="px-6 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-gray-50 border-r border-gray-100">
+                                    <div class="flex items-center">
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900">{{
+                                                stat.date.strftime('%d/%m') }}
+                                            </div>
+                                            <div class="text-xs text-gray-500">{{ stat.closer.username }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- KPIs -->
+                                <td class="px-4 py-4 text-center whitespace-nowrap bg-blue-50/30">
+                                    <span class="text-xs font-mono text-gray-700">
+                                        <span title="Scheduled" class="font-bold">{{ stat.calls_scheduled }}</span> /
+                                        <span title="Completed" class="text-green-600 font-bold">{{ stat.calls_completed
+                                            }}</span> /
+                                        <span title="No Show" class="text-orange-500">{{ stat.calls_no_show }}</span>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-4 text-center whitespace-nowrap bg-green-50/30">
+                                    <span class="text-sm font-bold text-gray-800">{{ stat.sales_count }}</span>
+                                    <span class="text-xs text-gray-400 block">${{ "%.0f"|format(stat.sales_amount)
+                                        }}</span>
+                                </td>
+                                <td class="px-4 py-4 text-center whitespace-nowrap bg-green-50/30">
+                                    <span class="text-sm font-bold text-green-700">${{
+                                        ":,.0f".format(stat.cash_collected)
+                                        }}</span>
+                                </td>
+
+                                <td class="px-4 py-4 text-center text-xs text-gray-500">
+                                    {{ stat.self_generated_bookings }}
+                                </td>
+
+                                <!-- Dynamic Answers -->
+                                {% for q in questions %}
+                                {% set ans = stat.answers.filter_by(question_id=q.id).first() %}
+                                <td
+                                    class="px-6 py-4 text-sm text-gray-600 border-l border-gray-100 min-w-[200px] break-words">
+                                    {% if ans %}
+                                    {{ ans.answer }}
+                                    {% else %}
+                                    <span class="text-gray-300">-</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="{{ 5 + questions|length }}" class="px-6 py-12 text-center text-gray-400">
+                                    No hay reportes para el periodo seleccionado.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+</div>
+</main>
+</div>
+{% endblock %}
