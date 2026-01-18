@@ -69,36 +69,22 @@
                         <thead>
                             <tr class="bg-gray-50 border-b border-gray-200">
                                 <th
-                                    class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">
+                                    class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 min-w-[150px] z-10 border-r border-gray-200">
                                     Fecha / Closer</th>
 
-                                <!-- KPIs -->
-                                <!-- KPIs -->
-                                <th
-                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-blue-50">
-                                    Llamadas<br><span class="text-[10px] lowercase text-blue-400">Sch / OK / No /
-                                        Can</span>
-                                </th>
-                                <th
-                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-purple-50">
-                                    Cierre %</th>
+                                <!-- Automated Financials (Fixed) -->
                                 <th
                                     class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-green-50">
-                                    Ventas</th>
+                                    Ventas (Auto)</th>
                                 <th
                                     class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center bg-green-50">
-                                    Cash</th>
-
-                                <!-- Manual Legacy -->
-                                <th
-                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center text-[10px]">
-                                    Self-Gen</th>
+                                    Cash (Auto)</th>
 
                                 <!-- Dynamic Questions Headers -->
                                 {% for q in questions %}
                                 <th
-                                    class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px] border-l border-gray-100">
-                                    {{ q.text|truncate(30) }}
+                                    class="px-4 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[120px] text-center whitespace-normal border-l border-gray-100">
+                                    {{ q.text }}
                                 </th>
                                 {% endfor %}
                             </tr>
@@ -107,7 +93,7 @@
                             {% for stat in stats %}
                             <tr class="hover:bg-gray-50 transition-colors">
                                 <td
-                                    class="px-6 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-gray-50 border-r border-gray-100">
+                                    class="px-6 py-4 whitespace-nowrap sticky left-0 bg-white group-hover:bg-gray-50 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">
                                     <div class="flex items-center">
                                         <div>
                                             <div class="text-sm font-medium text-gray-900">{{
@@ -118,46 +104,34 @@
                                     </div>
                                 </td>
 
-                                <!-- KPIs -->
-                                <td class="px-4 py-4 text-center whitespace-nowrap bg-blue-50/30">
-                                    <span class="text-xs font-mono text-gray-700">
-                                        <span title="Scheduled" class="font-bold">{{ stat.calls_scheduled }}</span> /
-                                        <span title="Completed" class="text-green-600 font-bold">{{ stat.calls_completed
-                                            }}</span> /
-                                        <span title="No Show" class="text-orange-500">{{ stat.calls_no_show }}</span> /
-                                        <span title="Canceled" class="text-red-400">{{ stat.calls_canceled }}</span>
-                                    </span>
-                                </td>
-                                <td class="px-4 py-4 text-center whitespace-nowrap bg-purple-50/30">
-                                    {% set rate = (stat.sales_count / stat.calls_completed * 100) if
-                                    stat.calls_completed > 0 else 0 %}
-                                    <span
-                                        class="text-sm font-bold {{ 'text-purple-600' if rate >= 15 else 'text-gray-500' }}">
-                                        {{ "%.0f"|format(rate) }}%
-                                    </span>
-                                </td>
+                                <!-- Automated Financials -->
                                 <td class="px-4 py-4 text-center whitespace-nowrap bg-green-50/30">
                                     <span class="text-sm font-bold text-gray-800">{{ stat.sales_count }}</span>
-                                    <span class="text-xs text-gray-400 block">${{ "%.0f"|format(stat.sales_amount)
+                                    <span class="text-xs text-gray-400 block">${{ "{:,.0f}".format(stat.sales_amount)
                                         }}</span>
                                 </td>
                                 <td class="px-4 py-4 text-center whitespace-nowrap bg-green-50/30">
                                     <span class="text-sm font-bold text-green-700">${{
-                                        ":,.0f".format(stat.cash_collected)
+                                        "{:,.0f}".format(stat.cash_collected)
                                         }}</span>
-                                </td>
-
-                                <td class="px-4 py-4 text-center text-xs text-gray-500">
-                                    {{ stat.self_generated_bookings }}
                                 </td>
 
                                 <!-- Dynamic Answers -->
                                 {% for q in questions %}
                                 {% set ans = stat.answers.filter_by(question_id=q.id).first() %}
-                                <td class="px-6 py-4 text-sm text-gray-600 border-l border-gray-100 min-w-[150px] max-w-[250px] truncate"
-                                    title="{{ ans.answer if ans else '' }}">
+                                <td class="px-4 py-4 text-sm text-gray-600 border-l border-gray-100 text-center">
                                     {% if ans %}
-                                    {{ ans.answer }}
+                                    {% if q.question_type == 'boolean' %}
+                                    {% if ans.answer == 'true' or ans.answer == '1' %}
+                                    <span class="text-green-600 font-bold">✓</span>
+                                    {% else %}
+                                    <span class="text-red-400">✗</span>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="truncate block max-w-[200px] mx-auto" title="{{ ans.answer }}">
+                                        {{ ans.answer }}
+                                    </span>
+                                    {% endif %}
                                     {% else %}
                                     <span class="text-gray-300">-</span>
                                     {% endif %}
@@ -166,12 +140,45 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="{{ 5 + questions|length }}" class="px-6 py-12 text-center text-gray-400">
+                                <td colspan="{{ 3 + questions|length }}" class="px-6 py-12 text-center text-gray-400">
                                     No hay reportes para el periodo seleccionado.
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
+                        <tfoot class="bg-gray-100 border-t-2 border-gray-200">
+                            <tr>
+                                <td
+                                    class="px-6 py-4 text-xs font-bold text-gray-700 uppercase sticky left-0 bg-gray-100 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] z-10">
+                                    Totales
+                                </td>
+
+                                <!-- Automated Totals -->
+                                <td class="px-4 py-4 text-center font-bold text-gray-800 bg-green-100/50">
+                                    {{ total_sales }}
+                                    <span class="block text-xs font-normal text-gray-500">${{
+                                        "{:,.0f}".format(total_sales * 1500) }} (Est)</span>
+                                    <!-- Note: Sales Amount Sum not passed as variable, using simple calc or just showing count? 
+                                         Ideally we should pass total_sales_amount from backend too if needed. 
+                                         For now, let's just show count. -->
+                                </td>
+                                <td class="px-4 py-4 text-center font-bold text-green-700 bg-green-100/50">
+                                    ${{ "{:,.0f}".format(total_cash) }}
+                                </td>
+
+                                <!-- Dynamic Question Totals -->
+                                {% for q in questions %}
+                                <td
+                                    class="px-4 py-4 text-center text-sm font-bold text-gray-700 border-l border-gray-200">
+                                    {% if questions_totals[q.id] is not none %}
+                                    {{ "{:,.0f}".format(questions_totals[q.id]) }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

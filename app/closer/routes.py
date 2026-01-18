@@ -349,6 +349,11 @@ def daily_report():
     
     # Cash Collected
     kpi_cash_collected = sum(p.amount for p in payments_today)
+    
+    # 3. Calculated Rates (Real-time for Today)
+    kpi_show_rate = (kpi_completed / kpi_scheduled * 100) if kpi_scheduled > 0 else 0
+    kpi_closing_rate = (kpi_sales_count / kpi_completed * 100) if kpi_completed > 0 else 0
+    kpi_avg_ticket = (kpi_sales_amount / kpi_sales_count) if kpi_sales_count > 0 else 0
 
     # --- Questions ---
     questions = DailyReportQuestion.query.filter_by(is_active=True).order_by(DailyReportQuestion.order).all()
@@ -412,7 +417,10 @@ def daily_report():
                            kpi_sales_count=kpi_sales_count,
                            kpi_sales_amount=kpi_sales_amount,
                            kpi_cash_collected=kpi_cash_collected,
-                           today_stats=today_stats, # Pass existing to pre-fill if needed (though we wipe answers on save, keeping UI simple)
+                           kpi_show_rate=kpi_show_rate,
+                           kpi_closing_rate=kpi_closing_rate,
+                           kpi_avg_ticket=kpi_avg_ticket,
+                           today_stats=today_stats, 
                            today=today_local
                            )
 from app.closer.utils import send_calendar_webhook
@@ -885,7 +893,8 @@ def create_sale():
     next_url = request.args.get('next')
     
     # Populate Choices
-    form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in Program.query.all()]
+    # Populate Choices
+    form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in Program.query.filter_by(is_active=True).all()]
     form.payment_method_id.choices = [(m.id, m.name) for m in PaymentMethod.query.filter_by(is_active=True).all()]
     
     # Handle GET with pre-fill
@@ -1247,7 +1256,7 @@ def new_sale(id):
     form = SaleForm()
     
     # Choices
-    programs = Program.query.all()
+    programs = Program.query.filter_by(is_active=True).all()
     form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in programs]
     
     methods = PaymentMethod.query.filter_by(is_active=True).all()

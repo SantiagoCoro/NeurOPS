@@ -1485,6 +1485,32 @@ def stats_closer():
     
     closers = User.query.filter_by(role='closer').all()
     questions = DailyReportQuestion.query.order_by(DailyReportQuestion.order).all()
+    
+    # Calculate totals for questions
+    questions_totals = {}
+    for q in questions:
+        if q.question_type == 'number':
+            # Sum all answers for this question
+            total = 0
+            for s in stats:
+                ans = s.answers.filter_by(question_id=q.id).first()
+                if ans and ans.answer:
+                    try:
+                        total += float(ans.answer)
+                    except ValueError:
+                        pass
+            questions_totals[q.id] = total
+            
+        elif q.question_type == 'boolean':
+            # Count "Yes" answers
+            count = 0
+            for s in stats:
+                ans = s.answers.filter_by(question_id=q.id).first()
+                if ans and (ans.answer == 'true' or ans.answer == '1' or ans.answer == 'Sí'):
+                    count += 1
+            questions_totals[q.id] = count
+        else:
+            questions_totals[q.id] = None
 
     return render_template('admin/stats_closer.html', 
                            stats=stats, 
@@ -1494,6 +1520,7 @@ def stats_closer():
                            closing_rate=closing_rate,
                            closers=closers,
                            questions=questions,
+                           questions_totals=questions_totals,
                            start_date=start_date,
                            end_date=end_date)
 
@@ -1515,6 +1542,16 @@ def edit_program(id):
             flash('Error al actualizar programa.')
             
     return render_template('admin/program_form.html', form=form, title="Editar Programa")
+
+@bp.route('/programs/toggle/<int:id>')
+@admin_required
+def toggle_program_status(id):
+    program = Program.query.get_or_404(id)
+    program.is_active = not program.is_active
+    db.session.commit()
+    status = "activado" if program.is_active else "desactivado"
+    flash(f'Programa {status}.')
+    return redirect(url_for('admin.programs_list'))
 
 @bp.route('/programs/delete/<int:id>')
 @admin_required
@@ -2155,7 +2192,7 @@ def create_sale():
     next_url = request.args.get('next')
     
     # Populate Choices
-    form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in Program.query.all()]
+    form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in Program.query.filter_by(is_active=True).all()]
     form.payment_method_id.choices = [(m.id, m.name) for m in PaymentMethod.query.filter_by(is_active=True).all()]
     
     # Populate Closer Choices for Admin
