@@ -426,8 +426,18 @@ def users_list():
 @admin_required
 def create_user():
     form = UserForm()
+    
+    # Populate Timezone Choices
+    import pytz
+    form.timezone.choices = [(tz, tz) for tz in pytz.common_timezones]
+    
+    if request.method == 'GET' and not form.timezone.data:
+         form.timezone.data = 'America/La_Paz' # Default
+
     if form.validate_on_submit():
         user = User(username=form.username.data, email=form.email.data, role=form.role.data)
+        user.timezone = form.timezone.data
+
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
