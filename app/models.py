@@ -404,6 +404,8 @@ class GoogleCalendarToken(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
     # Storing the entire credentials object as a JSON blob is often easiest for restoration
     token_json = db.Column(db.Text, nullable=False) 
+    # Preference for which calendar to sync events to
+    google_calendar_id = db.Column(db.String(255), default='primary')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

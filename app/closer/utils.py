@@ -72,15 +72,20 @@ def send_calendar_webhook(appointment, action, old_start_time=None):
         }
 
         # Handling Actions
+        # Get preferred calendar or default to primary
+        target_calendar_id = 'primary'
+        if appointment.closer.google_token and appointment.closer.google_token.google_calendar_id:
+            target_calendar_id = appointment.closer.google_token.google_calendar_id
+
         if action == 'canceled' or appointment.status == 'canceled':
             if appointment.google_event_id:
                 try:
-                    service.events().delete(calendarId='primary', eventId=appointment.google_event_id).execute()
+                    service.events().delete(calendarId=target_calendar_id, eventId=appointment.google_event_id).execute()
                     appointment.google_event_id = None
                     db.session.commit()
-                    print(f"GCal Event deleted for Appt {appointment.id}")
+                    print(f"GCal Event deleted for Appt {appointment.id}", flush=True)
                 except Exception as e:
-                    print(f"Error deleting GCal event: {e}")
+                    print(f"Error deleting GCal event: {e}", flush=True)
             return
 
         # Create or Update
@@ -88,18 +93,18 @@ def send_calendar_webhook(appointment, action, old_start_time=None):
             try:
                 # Try update
                 service.events().patch(
-                    calendarId='primary', 
+                    calendarId=target_calendar_id, 
                     eventId=appointment.google_event_id, 
                     body=event_body,
                     sendUpdates='all'
                 ).execute()
-                print(f"GCal Event updated for Appt {appointment.id}")
+                print(f"GCal Event updated for Appt {appointment.id}", flush=True)
             except Exception as e:
                 # If 404/Gone, recreate?
-                print(f"Error updating GCal event (might be deleted), trying recreate: {e}")
+                print(f"Error updating GCal event (might be deleted), trying recreate: {e}", flush=True)
                 # Fallback to create
                 new_event = service.events().insert(
-                    calendarId='primary', 
+                    calendarId=target_calendar_id, 
                     body=event_body,
                     sendUpdates='all'
                 ).execute()
@@ -108,13 +113,13 @@ def send_calendar_webhook(appointment, action, old_start_time=None):
         else:
             # Create
             new_event = service.events().insert(
-                calendarId='primary', 
+                calendarId=target_calendar_id, 
                 body=event_body,
                 sendUpdates='all'
             ).execute()
             appointment.google_event_id = new_event.get('id')
             db.session.commit()
-            print(f"GCal Event created for Appt {appointment.id}")
+            print(f"GCal Event created for Appt {appointment.id}", flush=True)
 
     except Exception as e:
         print(f"Critical GCal Sync Error for Appt {appointment.id}: {e}")

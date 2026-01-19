@@ -110,6 +110,31 @@
 
     </nav>
 
+    <!-- Calendar Connection Status -->
+    <div class="px-2 pb-2">
+        {% if calendar_connected %}
+        <a href="{{ url_for('google_auth.select_calendar') }}"
+            class="flex items-center gap-2 px-2 py-2 text-xs font-medium text-green-400 bg-green-900/20 rounded border border-green-800 hover:bg-green-900/40 transition-colors"
+            :class="expanded ? 'justify-start' : 'justify-center'" data-tooltip="Configurar Calendario">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span x-show="expanded" class="whitespace-nowrap overflow-hidden text-ellipsis">Calendar Conectado</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('google_auth.authorize') }}"
+            class="flex items-center gap-2 px-2 py-2 text-xs font-medium text-amber-200 bg-amber-900/30 rounded border border-amber-700 hover:bg-amber-900/50 transition-colors animate-pulse"
+            :class="expanded ? 'justify-start' : 'justify-center'" data-tooltip="⚠️ Conectar Google Calendar">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                </path>
+            </svg>
+            <span x-show="expanded" class="whitespace-nowrap overflow-hidden text-ellipsis">Conectar Calendar</span>
+        </a>
+        {% endif %}
+    </div>
+
     <!-- Footer / User -->
     <div class="pt-4 border-t border-slate-700 pb-4">
         <div class="flex items-center gap-3 mb-4 px-2 transition-all"

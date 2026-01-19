@@ -1,0 +1,58 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Seleccionar Calendario{% endblock %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+    {% include "includes/closer_sidebar.html" %}
+
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
+        <div class="max-w-2xl mx-auto mt-10">
+            <h1 class="text-2xl font-bold text-gray-900 mb-6">Configurar Calendario de Destino</h1>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <p class="text-gray-600 mb-4">
+                    Selecciona en qué calendario de Google quieres que se creen los eventos de las citas agendadas.
+                </p>
+
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                    <div class="space-y-3">
+                        {% for cal in calendars %}
+                        <label
+                            class="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition 
+                                      {% if cal.id == current_selection %}border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500{% else %}border-gray-200{% endif %}">
+                            <input type="radio" name="calendar_id" value="{{ cal.id }}"
+                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300" {% if
+                                cal.id==current_selection %}checked{% endif %}>
+                            <div class="ml-3">
+                                <span class="block text-sm font-medium text-gray-900">{{ cal.summary }}</span>
+                                <span class="block text-xs text-gray-500">{{ cal.id }}</span>
+                            </div>
+                            {% if cal.primary %}
+                            <span
+                                class="ml-auto inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                Principal
+                            </span>
+                            {% endif %}
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <a href="{{ url_for('closer.dashboard') }}"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                            Cancelar
+                        </a>
+                        <button type="submit"
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Guardar Selección
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

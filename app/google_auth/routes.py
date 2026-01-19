@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, url_for, session, request, current_app, flash
+from flask import Blueprint, redirect, url_for, session, request, current_app, flash, render_template
 from flask_login import login_required, current_user
 import google_auth_oauthlib.flow
 import os
@@ -9,7 +9,11 @@ from app.models import GoogleCalendarToken
 from app.google_auth import bp
 
 # Scopes required
-SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+# Scopes required
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/calendar.readonly'
+]
 
 def get_client_config():
     """Constructs client config from environment variables."""
@@ -115,4 +119,35 @@ def callback():
     db.session.commit()
     
     flash('Google Calendar conectado exitosamente.')
-    return redirect(url_for('admin.dashboard')) # Or closer dashboard
+    return redirect(url_for('closer.dashboard')) 
+
+from app.google_auth.utils import get_calendar_service
+
+@bp.route('/select-calendar', methods=['GET', 'POST'])
+@login_required
+def select_calendar():
+    service = get_calendar_service(current_user.id)
+    if not service:
+        flash('Primero debes conectar tu cuenta de Google.', 'warning')
+        return redirect(url_for('google_auth.authorize'))
+    
+    token = current_user.google_token
+
+    if request.method == 'POST':
+        selected_id = request.form.get('calendar_id')
+        if selected_id:
+            token.google_calendar_id = selected_id
+            db.session.commit()
+            flash('Calendario predeterminado actualizado.', 'success')
+            return redirect(url_for('closer.dashboard'))
+    
+    try:
+        # List calendars
+        calendar_list = service.calendarList().list().execute()
+        calendars = calendar_list.get('items', [])
+        
+        return render_template('closer/select_calendar.html', calendars=calendars, current_selection=token.google_calendar_id)
+        
+    except Exception as e:
+        flash(f'Error al obtener calendarios: {str(e)}', 'error')
+        return redirect(url_for('closer.dashboard'))
