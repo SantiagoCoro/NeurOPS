@@ -43,6 +43,10 @@ def authorize():
     # Force HTTPS in production if needed, or rely on Flask's ProxyFix/config
     redirect_uri = url_for('google_auth.callback', _external=True)
     
+    # Force HTTPS for non-local environments (Railway/Production)
+    if 'localhost' not in redirect_uri and '127.0.0.1' not in redirect_uri and not redirect_uri.startswith('https'):
+        redirect_uri = redirect_uri.replace('http:', 'https:')
+    
     # For local testing if http
     if 'localhost' in redirect_uri or '127.0.0.1' in redirect_uri:
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -70,6 +74,11 @@ def callback():
     state = session.get('google_auth_state')
     
     redirect_uri = url_for('google_auth.callback', _external=True)
+    
+    # Force HTTPS for non-local environments (Railway/Production)
+    if 'localhost' not in redirect_uri and '127.0.0.1' not in redirect_uri and not redirect_uri.startswith('https'):
+        redirect_uri = redirect_uri.replace('http:', 'https:')
+
     if 'localhost' in redirect_uri or '127.0.0.1' in redirect_uri:
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
