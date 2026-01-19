@@ -43,4 +43,7 @@ def create_app(config_class=Config):
     from app.public_sales import bp as public_sales_bp
     app.register_blueprint(public_sales_bp, url_prefix='/ventas')
 
+    from app.google_auth import bp as google_auth_bp
+    app.register_blueprint(google_auth_bp, url_prefix='/google')
+
     return app

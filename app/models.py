@@ -396,3 +396,17 @@ class CloserDailyStats(db.Model):
 
     def __repr__(self):
         return f'<CloserDailyStats {self.closer_id} on {self.date}>'
+
+class GoogleCalendarToken(db.Model):
+    __tablename__ = 'google_calendar_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    # Storing the entire credentials object as a JSON blob is often easiest for restoration
+    token_json = db.Column(db.Text, nullable=False) 
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('google_token', uselist=False, cascade="all, delete-orphan"))
+
+    def __repr__(self):
+        return f'<GoogleToken for User {self.user_id}>'
