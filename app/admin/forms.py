@@ -9,6 +9,7 @@ class UserForm(FlaskForm):
     email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
     password = PasswordField('Contraseña', validators=[Optional(), Length(min=4)]) # Optional for editing
     role = SelectField('Rol', choices=[('admin', 'Administrador'), ('closer', 'Closer'), ('lead', 'Lead'), ('student', 'Estudiante')], validators=[DataRequired()])
+    timezone = SelectField('Zona Horaria', validators=[Optional()]) # Choices populated in route or init
     submit = SubmitField('Guardar')
 
 class ManualAddForm(FlaskForm):
