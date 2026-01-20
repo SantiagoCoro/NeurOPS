@@ -1,0 +1,230 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Dashboard Closer{% endblock %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden">
+
+    {% include "includes/closer_sidebar.html" %}
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="text-2xl font-bold text-gray-800">Hola, {{ current_user.username }}</h3>
+                <p class="text-sm text-gray-500">Tus métricas de hoy</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="{{ url_for('closer.create_appointment') }}"
+                    class="px-3 py-2 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700">Crear Agenda</a>
+                <a href="{{ url_for('closer.create_sale') }}"
+                    class="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 font-bold">+ Nueva
+                    Venta</a>
+            </div>
+        </header>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Agendas Hoy</p>
+                <p class="text-2xl font-extrabold text-gray-800 mt-1">{{ today_appointments_count }}</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Ventas Mes</p>
+                <p class="text-2xl font-extrabold text-indigo-600 mt-1">${{ "{:,.0f}".format(monthly_sales) }}</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">Tasa Cierre</p>
+                <p class="text-2xl font-extrabold text-green-600 mt-1">{{ "{:.0f}%".format(closing_rate) }}</p>
+            </div>
+        </div>
+
+        <!-- Public Sales Link -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <h4 class="font-bold text-gray-800 mb-4">Tu Formulario de Ventas (Público)</h4>
+            <div class="border border-gray-100 rounded-lg p-3 flex flex-col gap-2 hover:bg-gray-50 transition">
+                <div class="flex justify-between items-center">
+                    <span class="font-medium text-gray-700">Reportar Venta sin Login</span>
+                    <span class="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded font-mono">Público</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <code class="text-xs bg-gray-100 px-2 py-1.5 rounded flex-1 truncate select-all text-gray-500"
+                        id="link-public-sales">
+                        {{ url_for('public_sales.lookup', closer_username=current_user.username, _external=True) }}
+                    </code>
+                    <button onclick="copyToClipboard('link-public-sales')"
+                        class="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase px-2">
+                        Copiar
+                    </button>
+                    <a href="{{ url_for('public_sales.lookup', closer_username=current_user.username) }}"
+                        target="_blank" class="text-xs font-bold text-gray-500 hover:text-gray-800 uppercase px-2">
+                        Abrir
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {% if events %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <h4 class="font-bold text-gray-800 mb-4">Links de Eventos</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for event in events %}
+                <div class="border border-gray-100 rounded-lg p-3 flex flex-col gap-2 hover:bg-gray-50 transition">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium text-gray-700">{{ event.name }}</span>
+                        <span class="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-mono">{{
+                            event.utm_source }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <code class="text-xs bg-gray-100 px-2 py-1.5 rounded flex-1 truncate select-all text-gray-500"
+                            id="link-{{ event.id }}">
+                            {{ url_for('booking.start_booking', utm_source=event.utm_source, ref=current_user.id, _external=True) }}
+                        </code>
+                        <button onclick="copyToClipboard('link-{{ event.id }}')"
+                            class="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase px-2">
+                            Copiar
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <script>
+            function copyToClipboard(elementId) {
+                const text = document.getElementById(elementId).innerText.trim();
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('Link copiado al portapapeles');
+                });
+            }
+        </script>
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Next Calls -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h4 class="font-bold text-gray-800 mb-4 flex justify-between items-center">
+                    Próximas Llamadas
+                    <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {% set user_tz = pytz.timezone(current_user.timezone or 'America/La_Paz') %}
+                        {{ current_user.timezone or 'America/La_Paz' }} ({{ datetime.now(user_tz).strftime('%Z %z') }})
+                    </span>
+                </h4>
+                {% if next_calls %}
+                <ul class="divide-y divide-gray-100">
+                    {% for call in next_calls %}
+                    {% set tz = pytz.timezone(current_user.timezone or 'America/La_Paz') %}
+                    {% set local_time = call.start_time.replace(tzinfo=pytz.utc).astimezone(tz) %}
+                    <li class="p-3 hover:bg-gray-50 transition rounded-lg flex items-center justify-between group">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="bg-indigo-100 text-indigo-600 rounded-lg p-2 flex flex-col items-center min-w-[60px]">
+                                <span class="text-xs font-bold uppercase">{{ local_time.strftime('%b') }}</span>
+                                <span class="text-xl font-bold leading-none">{{ local_time.strftime('%d') }}</span>
+                            </div>
+                            <div>
+                                <h5 class="font-bold text-gray-800">{{ call.lead.username }}</h5>
+                                <div class="flex items-center text-xs text-gray-500 gap-2">
+                                    <span class="font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">
+                                        {{ local_time.strftime('%H:%M') }}
+                                    </span>
+                                    <span>{{ call.event.name if call.event else 'General' }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <a href="{{ url_for('closer.edit_appointment', id=call.id) }}" title="Editar / Reagendar"
+                                class="p-1.5 text-blue-600 hover:bg-white rounded shadow-sm transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                    </path>
+                                </svg>
+                            </a>
+                            <a href="{{ url_for('closer.update_appt_status', id=call.id, status='completed') }}"
+                                title="Marcar Realizada"
+                                class="p-1.5 text-green-600 hover:bg-white rounded shadow-sm transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7">
+                                    </path>
+                                </svg>
+                            </a>
+                            <a href="{{ url_for('closer.update_appt_status', id=call.id, status='no_show') }}"
+                                title="Marcar No Show"
+                                class="p-1.5 text-orange-500 hover:bg-white rounded shadow-sm transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21">
+                                    </path>
+                                </svg>
+                            </a>
+                            <a href="{{ url_for('closer.update_appt_status', id=call.id, status='canceled') }}"
+                                onclick="return confirm('¿Cancelar esta cita? Esto liberará el horario.')"
+                                title="Cancelar Cita"
+                                class="p-1.5 text-red-500 hover:bg-white rounded shadow-sm transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">
+                No hay llamadas pendientes por ahora.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Top 5 Debtors -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h4 class="font-bold text-gray-800">Top 5 Clientes Deudores</h4>
+            </div>
+
+            {% if top_debtors %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="text-gray-500 font-medium border-b border-gray-100">
+                        <tr>
+                            <th class="pb-3">Cliente</th>
+                            <th class="pb-3">Programa</th>
+                            <th class="pb-3 text-right">Deuda</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        {% for d in top_debtors %}
+                        <tr class="group hover:bg-gray-50 transition">
+                            <td class="py-3 font-medium text-gray-800">
+                                {{ d.student.username }}
+                                <span class="block text-xs text-gray-400 font-normal">{{ d.student.email }}</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <a href="{{ url_for('booking.start_booking', utm_source='referral_' ~ current_user.id, _external=True) }}"
+                                    target="_blank" class="text-indigo-600 hover:text-indigo-900">
+                                    Link de Agendamiento
+                                </a>
+                            </td>
+                            <td class="py-3 text-right font-mono font-bold text-red-500">
+                                ${{ "{:,.2f}".format(d.debt) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500 text-sm">
+                No hay clientes con deuda pendiente.
+            </div>
+            {% endif %}
+        </div>
+</div>
+
+</main>
+</div>
+{% endblock %}

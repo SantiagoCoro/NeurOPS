@@ -652,11 +652,175 @@ def update_appt_status(id, status):
     
     # If redirecting back to lead detail might be useful too? 
     # For now, back to referrer or dashboard
-    return redirect(request.referrer or url_for('closer.dashboard'))
+    return redirect(request.referrer or url_for('closer.agendas'))
 
-@bp.route('/dashboard')
+@bp.route('/dashboard', methods=['GET', 'POST'])
 @closer_required
 def dashboard():
+    tz_name = current_user.timezone or 'America/La_Paz'
+    try:
+        user_tz = pytz.timezone(tz_name)
+    except:
+        user_tz = pytz.timezone('America/La_Paz')
+        
+    now_local = datetime.now(user_tz)
+    today_local = now_local.date()
+    start_local = user_tz.localize(datetime.combine(today_local, time.min))
+    end_local = user_tz.localize(datetime.combine(today_local, time.max))
+    start_utc = start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    end_utc = end_local.astimezone(pytz.UTC).replace(tzinfo=None)
+
+    # --- 1. KPIs ---
+    
+    # A. Commission Month & Day
+    month_start_local = user_tz.localize(datetime(today_local.year, today_local.month, 1))
+    month_start_utc = month_start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    # Calculate Commission (Assuming 10% of Net Cash Collected)
+    def calculate_commission(start_dt, end_dt):
+        # Gross Cash from my enrollments
+        gross_cash = db.session.query(db.func.sum(Payment.amount)).select_from(Enrollment).join(Payment).filter(
+            Enrollment.closer_id == current_user.id,
+            Payment.status == 'completed',
+            Payment.date >= start_dt,
+            Payment.date <= end_dt
+        ).scalar() or 0.0
+        
+        # Platform Fees for these payments
+        fees = db.session.query(
+            db.func.sum(
+                (Payment.amount * (PaymentMethod.commission_percent / 100.0)) + PaymentMethod.commission_fixed
+            )
+        ).select_from(Enrollment).join(Payment).join(PaymentMethod).filter(
+             Enrollment.closer_id == current_user.id,
+             Payment.status == 'completed',
+             Payment.date >= start_dt,
+             Payment.date <= end_dt
+        ).scalar() or 0.0
+        
+        net_cash = gross_cash - fees
+        return net_cash * 0.10
+
+    commission_month = calculate_commission(month_start_utc, end_utc)
+    commission_today = calculate_commission(start_utc, end_utc)
+
+    # B. Closing Rate Month & Day
+    def calculate_closing_rate(start_dt, end_dt):
+        completed_appts = Appointment.query.filter(
+            Appointment.closer_id == current_user.id,
+            Appointment.start_time >= start_dt,
+            Appointment.start_time <= end_dt,
+            Appointment.status == 'completed'
+        ).count()
+        
+        sales_count = Enrollment.query.filter(
+            Enrollment.closer_id == current_user.id,
+            Enrollment.enrollment_date >= start_dt,
+            Enrollment.enrollment_date <= end_dt,
+            Enrollment.status != 'dropped'
+        ).count()
+        
+        return (sales_count / completed_appts * 100) if completed_appts > 0 else 0
+
+    closing_rate_month = calculate_closing_rate(month_start_utc, end_utc)
+    closing_rate_today = calculate_closing_rate(start_utc, end_utc)
+
+    # C. Daily Progress (Agendas Processed + Report Done / Total Agendas + 1)
+    # Total Agendas Today (including canceled/no-show to encourage processing everything)
+    total_agendas_query = Appointment.query.filter(
+        Appointment.closer_id == current_user.id,
+        Appointment.start_time >= start_utc,
+        Appointment.start_time <= end_utc
+    )
+    total_agendas_count = total_agendas_query.count()
+    
+    # Processed: completed, no_show, canceled
+    processed_agendas_count = total_agendas_query.filter(Appointment.status.in_(['completed', 'no_show', 'canceled'])).count()
+    
+    # Report Status
+    today_stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today_local).first()
+    report_done = 1 if today_stats else 0 # Simplified check. Ideally check if answers exist too.
+    
+    total_steps = total_agendas_count + 1
+    completed_steps = processed_agendas_count + report_done
+    daily_progress = (completed_steps / total_steps * 100) if total_steps > 0 else 0
+    if daily_progress > 100: daily_progress = 100
+
+    # --- 2. COLUMNS DATA ---
+
+    # Col 1: Upcoming Agendas (Today and Future)
+    # Filter: Agendas for today (remaining) OR future days? 
+    # User said "Proximas agendas". 
+    # Let's show Today's agendas (sorted by time) PLUS next few future ones.
+    # Actually, listing *all* today's agendas is better for management (even past ones if not processed).
+    # "Agendas del Agente" usually implies managing the day.
+    
+    upcoming_agendas = Appointment.query.filter(
+        Appointment.closer_id == current_user.id,
+        Appointment.start_time >= start_utc,
+        Appointment.status == 'scheduled'
+    ).order_by(Appointment.start_time.asc()).limit(20).all()
+    
+    # Col 2: Recent Clients (Assigned or interacted)
+    # Broaden to include mapped via Appointment or Enrollment, and allow Students.
+    recent_clients = User.query.filter(
+        User.role.in_(['lead', 'student'])
+    ).filter(
+        or_(
+            User.enrollments.any(Enrollment.closer_id == current_user.id),
+            User.appointments_as_lead.any(Appointment.closer_id == current_user.id),
+            User.lead_profile.has(assigned_closer_id=current_user.id)
+        )
+    ).order_by(User.created_at.desc()).limit(15).all()
+
+    # Col 3: Daily Report Questions
+    questions = DailyReportQuestion.query.filter_by(is_active=True).order_by(DailyReportQuestion.order).all()
+    
+    # Handle Report POST (if specific save button pressed)
+    if request.method == 'POST' and 'save_report' in request.form:
+        if not today_stats:
+            today_stats = CloserDailyStats(closer_id=current_user.id, date=today_local)
+            db.session.add(today_stats)
+        
+        # Save Answers
+        # (Simplified logic from daily_report route)
+        current_answers = DailyReportAnswer.query.filter_by(daily_stats_id=today_stats.id).all()
+        for ans in current_answers:
+             db.session.delete(ans)
+             
+        for q in questions:
+            ans_text = request.form.get(f'question_{q.id}')
+            if q.question_type == 'boolean':
+                ans_text = 'Sí' if request.form.get(f'question_{q.id}') else 'No'
+            
+            if ans_text:
+                new_ans = DailyReportAnswer(
+                    daily_stats_id=today_stats.id,
+                    question_id=q.id,
+                    answer=str(ans_text)
+                )
+                db.session.add(new_ans)
+        
+        db.session.commit()
+        flash('Reporte diario guardado.')
+        return redirect(url_for('closer.dashboard'))
+
+    return render_template('closer/dashboard.html',
+                           commission_month=commission_month,
+                           commission_today=commission_today,
+                           closing_rate_month=closing_rate_month,
+                           closing_rate_today=closing_rate_today,
+                           daily_progress=daily_progress,
+                           upcoming_agendas=upcoming_agendas,
+                           recent_clients=recent_clients,
+                           questions=questions,
+                           today_stats=today_stats,
+                           datetime=datetime,
+                           pytz=pytz)
+
+@bp.route('/agendas')
+@closer_required
+def agendas():
     import pytz # Import strictly for template usage if needed
     
     # 1. KPIs
@@ -764,7 +928,7 @@ def dashboard():
     if month_appointments_count > 0:
         closing_rate = (monthly_sales_count / month_appointments_count) * 100
 
-    return render_template('closer/dashboard.html', 
+    return render_template('closer/agendas.html', 
                            today_appointments_count=todays_calls_count, 
                            next_calls=next_calls,
                            events=events,
@@ -947,6 +1111,7 @@ def create_sale():
             if pay_type in ['full', 'down_payment', 'renewal']:
                  # Create Enrollment
                  enrollment = Enrollment(
+                     student_id=lead_id,
                      program_id=program_id,
                      total_agreed=amount if pay_type == 'full' else program.price, # Default to list price if not full, or logic? User didn't specify. Assuming list price.
                      status='active',
@@ -1369,6 +1534,11 @@ def add_payment(id):
         db.session.add(payment)
         db.session.commit()
         
+        # Auto-update status
+        user = User.query.get(enrollment.student_id)
+        if user:
+            user.update_status_based_on_debt()
+        
         # Webhook
         send_sales_webhook(payment, current_user.username)
         
@@ -1395,6 +1565,12 @@ def edit_payment(id):
         payment.status = form.status.data
         
         db.session.commit()
+        
+        # Auto-update status
+        user = User.query.get(payment.enrollment.student_id)
+        if user:
+            user.update_status_based_on_debt()
+            
         flash('Pago actualizado.')
         return redirect(url_for('closer.lead_detail', id=payment.enrollment.student_id))
         
