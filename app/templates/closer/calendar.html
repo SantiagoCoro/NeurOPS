@@ -126,8 +126,10 @@
                         has_appt=false) %} {# Check Availabilities #} {% for a in availabilities %} {% if
                         a.date|string==current_date|string and a.start_time.hour==hour %} {% set ns.booked=true %} {%
                         endif %} {% endfor %} {# Check Appointments (Agendados) #} {% for appt in appointments %} {#
-                        Comparation logic: appt.start_time is datetime #} {% if
-                        appt.start_time.date()|string==current_date|string and appt.start_time.hour==hour %} {% set
+                        Convert UTC DB time to Closer Local Time #} {% set tz=pytz.timezone(current_user.timezone
+                        or 'America/La_Paz' ) %} {# Ensure UTC awareness before conversion #} {% set
+                        local_start=appt.start_time.replace(tzinfo=pytz.utc).astimezone(tz) %} {% if
+                        local_start.date()|string==current_date|string and local_start.hour==hour %} {% set
                         ns.has_appt=true %} {% endif %} {% endfor %} <div
                         class="border-r border-gray-100 relative h-10 slot-cell 
                              {% if is_past %} bg-gray-200 cursor-not-allowed opacity-50
@@ -135,9 +137,9 @@
                              {% else %} cursor-pointer hover:bg-gray-50 {% endif %}
                              {% if ns.booked and not is_past and not ns.has_appt %} bg-green-500 hover:bg-green-600 border-green-600 text-white {% endif %}"
                         data-date="{{ current_date }}" data-hour="{{ " %02d"|format(hour) }}"
-                        data-ispast="{{ is_past }}" data-hasappt="{{ ns.has_appt }}" ondragstart="return false;"
-                        onmousedown="startSelection(this)" onmouseover="updateSelection(this)"
-                        onmouseup="endSelection()">
+                        data-ispast="{{ is_past }}" data-hasappt="{{ ns.has_appt }}" data-booked="{{ ns.booked }}"
+                        ondragstart="return false;" onmousedown="startSelection(this)"
+                        onmouseover="updateSelection(this)" onmouseup="endSelection()">
 
                         {% if ns.has_appt %}
                         <div class="absolute inset-0 flex items-center justify-center">
@@ -256,8 +258,15 @@
         document.querySelectorAll('.slot-cell').forEach(cell => {
             if (cell.dataset.ispast === 'True') return;
 
-            // Check if visually active
-            const isSelected = cell.classList.contains('bg-green-200') || cell.classList.contains('bg-green-500');
+            // Check if visually active OR if it was available but hidden by appointment
+            // If it has appointment (red), user couldn't toggle it. So preserve 'booked' state.
+            let isSelected = false;
+
+            if (cell.dataset.hasappt === 'True') {
+                if (cell.dataset.booked === 'True') isSelected = true;
+            } else {
+                isSelected = cell.classList.contains('bg-green-200') || cell.classList.contains('bg-green-500');
+            }
 
             if (isSelected) {
                 slots.push({
@@ -268,10 +277,11 @@
         });
 
         if (slots.length === 0) {
-            alert('No hay bloques seleccionados para guardar. (Debug: Array vacío)');
-            btn.innerText = 'Guardar Cambios';
-            btn.disabled = false;
-            return;
+            if (!confirm('¿Estás seguro que deseas borrar toda tu disponibilidad para esta semana?')) {
+                btn.innerText = 'Guardar Cambios';
+                btn.disabled = false;
+                return;
+            }
         }
 
         // Current week Start date for backend to know what range to wipe

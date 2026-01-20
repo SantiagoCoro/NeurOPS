@@ -50,86 +50,7 @@
                         </form>
                     </div>
 
-                    <!-- Landing Questions -->
-                    <div class="mb-8">
-                        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 font-bold text-gray-700">
-                            Landing (Datos de Contacto)
-                        </div>
-                        {% if landing_questions %}
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-gray-50 text-gray-500 font-medium">
-                                <tr>
-                                    <th class="px-6 py-3 w-16">Orden</th>
-                                    <th class="px-6 py-3">Pregunta</th>
-                                    <th class="px-6 py-3">Mapeo</th>
-                                    <th class="px-6 py-3 text-center">Estado</th>
-                                    <th class="px-6 py-3 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                {% for q in landing_questions %}
-                                <tr
-                                    class="hover:bg-gray-50 transition {% if editing_id == q.id %}bg-indigo-50{% endif %}">
-                                    <td class="px-6 py-3 text-gray-500 font-mono text-xs">{{ q.order }}</td>
-                                    <td class="px-6 py-3 text-gray-900 font-medium">
-                                        {{ q.text }}
-                                        <div class="text-xs text-gray-400 mt-0.5">
-                                            {% if q.event %}<span class="text-indigo-600">Evento: {{ q.event.name
-                                                }}</span>
-                                            {% elif q.group %}<span class="text-purple-600">Grupo: {{ q.group.name
-                                                }}</span>
-                                            {% else %}Global{% endif %}
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-3 text-gray-500">
-                                        {% if q.mapping_field %}
-                                        <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-mono">{{
-                                            q.mapping_field }}</span>
-                                        {% else %}-{% endif %}
-                                    </td>
-                                    <td class="px-6 py-3 text-center">
-                                        {% if q.is_active %}
-                                        <svg class="w-4 h-4 text-green-500 mx-auto" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M5 13l4 4L19 7"></path>
-                                        </svg>
-                                        {% else %}
-                                        <svg class="w-4 h-4 text-gray-300 mx-auto" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M6 18L18 6M6 6l12 12"></path>
-                                        </svg>
-                                        {% endif %}
-                                    </td>
-                                    <td class="px-6 py-3 text-right flex justify-end gap-2">
-                                        <a href="{{ url_for('admin.edit_question', id=q.id) }}"
-                                            class="text-gray-400 hover:text-indigo-600" title="Editar">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z">
-                                                </path>
-                                            </svg>
-                                        </a>
-                                        <a href="{{ url_for('admin.delete_question', id=q.id) }}"
-                                            onclick="return confirm('¿Eliminar?')"
-                                            class="text-gray-400 hover:text-red-600" title="Eliminar">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                                </path>
-                                            </svg>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                        {% else %}
-                        <div class="text-center py-6 text-gray-400 text-sm italic">No hay preguntas de landing
-                            configuradas.</div>
-                        {% endif %}
-                    </div>
+
 
                     <!-- Survey Questions -->
                     <div>
@@ -234,26 +155,14 @@
                             {{ form.target(class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2
                             focus:ring-indigo-500 outline-none text-sm bg-white") }}
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 gap-4">
                             <div>
                                 {{ form.question_type.label(class="block text-xs font-semibold text-gray-600 mb-1") }}
                                 {{ form.question_type(class="w-full px-3 py-2 border border-gray-300 rounded
                                 focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white") }}
                             </div>
-                            <div>
-                                {{ form.step.label(class="block text-xs font-semibold text-gray-600 mb-1") }}
-                                {{ form.step(class="w-full px-3 py-2 border border-gray-300 rounded
-                                focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white") }}
-                            </div>
-                        </div>
-                        <div x-data="{ step: '{{ form.step.data }}' }"
-                            x-effect="step = $el.closest('form').querySelector('[name=step]').value">
-                            <div x-show="step === 'landing'" class="mb-4">
-                                {{ form.mapping_field.label(class="block text-xs font-semibold text-gray-600 mb-1") }}
-                                {{ form.mapping_field(class="w-full px-3 py-2 border border-gray-300 rounded
-                                focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white") }}
-                                <p class="text-[10px] text-gray-400 mt-1">Vincula la respuesta a un campo del perfil.
-                                </p>
+                            <div class="hidden">
+                                {{ form.step(value="survey") }}
                             </div>
                         </div>
                         <div x-data="{ 

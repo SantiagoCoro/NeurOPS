@@ -1,0 +1,18 @@
+
+[
+  {
+    "title": "Ingresos del mes",
+    "query": "SELECT SUM(amount) FROM payments WHERE status = 'completed' AND date >= DATE('now', 'start of month')",
+    "type": "kpi"
+  },
+  {
+    "title": "Gastos del mes",
+    "query": "SELECT SUM(amount) FROM expenses WHERE date >= DATE('now', 'start of month')",
+    "type": "kpi"
+  },
+  {
+    "title": "Nuevos Leads",
+    "query": "SELECT COUNT(*) FROM users WHERE role = 'lead' AND created_at >= DATE('now', 'start of month')",
+    "type": "kpi"
+  }
+]

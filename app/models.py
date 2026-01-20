@@ -21,6 +21,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), index=True, unique=True)
     password_hash = db.Column(db.String(256))
     role = db.Column(db.String(20), default=ROLE_LEAD)
+    timezone = db.Column(db.String(50), default='America/La_Paz') # New Timezone Support
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -73,7 +74,14 @@ class User(UserMixin, db.Model):
         return total_debt
 
     def update_status_based_on_debt(self):
-        """Updates the user's lead profile status based on current debt and enrollments."""
+        """
+        Updates the user's lead profile status based on current debt, enrollments, and appointments.
+        Priority:
+        1. Pending (Debts) - Active enrollments with debt.
+        2. Completed - Active enrollments with NO debt.
+        3. Scheduled - No enrollments/payments, but has future appointments.
+        4. New - No payments, no enrollments, no future appointments. (Or if canceled appt and nothing else)
+        """
         if not self.lead_profile:
             # Create profile if missing
             profile = LeadProfile(user_id=self.id)
@@ -83,21 +91,50 @@ class User(UserMixin, db.Model):
         has_enrollments = self.enrollments.count() > 0
         debt = self.current_active_debt
         
+        # Check for ANY payments (to distinguish 'new' from others)
+        # Efficiently check if any completed payment exists
+        # self.enrollments is dynamic, so we can iterate or join
+        has_payments = False
+        for enr in self.enrollments:
+            if enr.payments.filter_by(status='completed').count() > 0:
+                has_payments = True
+                break
+        
+        # Check for Future Appointments (Agendado)
+        # Explicit import to avoid circular dependency if placed at top, usually safe inside method or use string
+        # 'Appointment' is defined in this file (models.py), so it's safe.
+        now = datetime.now()
+        has_future_appointment = self.appointments_as_lead.filter(
+            Appointment.start_time > now, 
+            Appointment.status == 'scheduled'
+        ).count() > 0
+
         new_status = self.lead_profile.status
         
-        if not has_enrollments:
-            # No enrollments -> New
-            new_status = 'new'
-        elif debt > 0:
-            # Has debt -> Pending
+        # Logic Hierarchy
+        if debt > 0:
+            # Priority 1: Has debt -> Pending (Pendiente)
             new_status = 'pending'
-        elif debt <= 0 and has_enrollments:
-            # No debt but has enrollments -> Completed
+        elif has_enrollments and debt <= 0:
+             # Priority 2: Has enrollments but NO debt -> Completed (Completo)
             new_status = 'completed'
-            
+        elif has_future_appointment:
+            # Priority 3: No enrollments/debt but has future appointment -> Scheduled (Agendado)
+            new_status = 'agenda'
+        elif not has_payments:
+             # Priority 4: No payments, no enrollments, no future appt -> New (Nuevo)
+             # What if they have past appointments but canceled? -> Nuevo
+             new_status = 'new'
+        else:
+            # Fallback (Has payments but no active enrollment? Dropped?)
+            # Keep as is or default? Let's leave as is if none match, or 'new'.
+            pass
+
         if new_status != self.lead_profile.status:
             self.lead_profile.status = new_status
             db.session.add(self.lead_profile)
+            # DB Commit should be handled by caller usually, but method name implies action.
+            # Original method had commit. Let's keep it to ensure it saves.
             db.session.commit()
 
 
@@ -220,8 +257,10 @@ class Appointment(db.Model):
     closer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     lead_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=True) # Check nullable first to avoid migration issues? Let's say nullable=True for now.
-    start_time = db.Column(db.DateTime, nullable=False)
+    # Timezone Note: stored in UTC (naive datetime, but logic treats as UTC)
+    start_time = db.Column(db.DateTime, index=True)
     status = db.Column(db.String(20), default='scheduled') # scheduled, completed, canceled, no_show
+    google_event_id = db.Column(db.String(255), nullable=True) # Store GCal Event ID for updates
 
 class Availability(db.Model):
     __tablename__ = 'availability'
@@ -309,49 +348,48 @@ class Integration(db.Model):
 
     def __repr__(self):
         return f'<Integration {self.name} ({self.active_env})>'
+
+class DailyReportQuestion(db.Model):
+    __tablename__ = 'daily_report_questions'
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.String(255), nullable=False)
+    question_type = db.Column(db.String(50), default='text') # text, number, boolean
+    order = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+
+    def __repr__(self):
+        return f'<DailyReportQuestion {self.text}>'
+
+class DailyReportAnswer(db.Model):
+    __tablename__ = 'daily_report_answers'
+    id = db.Column(db.Integer, primary_key=True)
+    daily_stats_id = db.Column(db.Integer, db.ForeignKey('closer_daily_stats.id'), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey('daily_report_questions.id'), nullable=False)
+    answer = db.Column(db.Text)
+    
+    question = db.relationship('DailyReportQuestion')
+    daily_stats = db.relationship('CloserDailyStats', backref=db.backref('answers', lazy='dynamic'))
+
 class CloserDailyStats(db.Model):
     __tablename__ = 'closer_daily_stats'
     id = db.Column(db.Integer, primary_key=True)
     closer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     date = db.Column(db.Date, nullable=False)
     
-    # Slots
-    slots_available = db.Column(db.Integer, default=0)
+    # Automated KPIs (Snapshots)
+    calls_scheduled = db.Column(db.Integer, default=0) # Total Scheduled for this day
+    calls_completed = db.Column(db.Integer, default=0) # Total Completed
+    calls_no_show = db.Column(db.Integer, default=0)
+    calls_canceled = db.Column(db.Integer, default=0)
     
-    # First Calls (Primeras Agendas)
-    first_agendas = db.Column(db.Integer, default=0)
-    first_agendas_attended = db.Column(db.Integer, default=0)
-    first_agendas_no_show = db.Column(db.Integer, default=0)
-    first_agendas_rescheduled = db.Column(db.Integer, default=0)
-    first_agendas_canceled = db.Column(db.Integer, default=0)
+    sales_count = db.Column(db.Integer, default=0)
+    sales_amount = db.Column(db.Float, default=0.0)
+    cash_collected = db.Column(db.Float, default=0.0)
     
-    # Second Calls (Segundas Agendas)
-    second_agendas = db.Column(db.Integer, default=0)
-    second_agendas_attended = db.Column(db.Integer, default=0)
-    second_agendas_no_show = db.Column(db.Integer, default=0)
-    second_agendas_rescheduled = db.Column(db.Integer, default=0)
-    second_agendas_canceled = db.Column(db.Integer, default=0)
+    # Legacy / Manual Metrics (Optional, keep if needed for now)
+    self_generated_bookings = db.Column(db.Integer, default=0) 
     
-    # Other Metrics
-    second_calls_booked = db.Column(db.Integer, default=0) # 2th Call Agendada
-    presentations = db.Column(db.Integer, default=0)
-    sales_on_call = db.Column(db.Integer, default=0)
-    sales_followup = db.Column(db.Integer, default=0)
-    
-    followups_started_booking = db.Column(db.Integer, default=0) # Seguimientos iniciados para agenda
-    followups_started_closing = db.Column(db.Integer, default=0) # Seguimientos iniciados para cierre
-    
-    replies_booking = db.Column(db.Integer, default=0) # Respuestas para agenda
-    replies_sales = db.Column(db.Integer, default=0)   # Respuestas para venta
-    
-    self_generated_bookings = db.Column(db.Integer, default=0) # Agendas propias
-    
-    # Checklist / Qualitative
-    notion_completed = db.Column(db.Boolean, default=False)
-    objection_form_completed = db.Column(db.Boolean, default=False)
-    
-    win_of_day = db.Column(db.Text)
-    improvement_area = db.Column(db.Text)
+    # Removed qualitative columns (win_of_day, etc) in favor of DailyReportAnswer
     
     closer = db.relationship('User', backref=db.backref('daily_stats', lazy='dynamic'))
 
@@ -359,3 +397,19 @@ class CloserDailyStats(db.Model):
 
     def __repr__(self):
         return f'<CloserDailyStats {self.closer_id} on {self.date}>'
+
+class GoogleCalendarToken(db.Model):
+    __tablename__ = 'google_calendar_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    # Storing the entire credentials object as a JSON blob is often easiest for restoration
+    token_json = db.Column(db.Text, nullable=False) 
+    # Preference for which calendar to sync events to
+    google_calendar_id = db.Column(db.String(255), default='primary')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('google_token', uselist=False, cascade="all, delete-orphan"))
+
+    def __repr__(self):
+        return f'<GoogleToken for User {self.user_id}>'

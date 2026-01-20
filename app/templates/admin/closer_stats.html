@@ -36,31 +36,25 @@
         </div>
 
         <!-- KPI Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
-                <div class="text-xs text-gray-500 uppercase font-bold">Show Rate (1st)</div>
-                <div class="text-2xl font-bold text-gray-800">{{ "%.1f"|format(kpis.show_rate_1) }}%</div>
-                <div class="text-xs text-gray-400">{{ total.first_attended }} / {{ total.first_agendas }}</div>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-indigo-500">
-                <div class="text-xs text-gray-500 uppercase font-bold">Show Rate (2nd)</div>
-                <div class="text-2xl font-bold text-gray-800">{{ "%.1f"|format(kpis.show_rate_2) }}%</div>
-                <div class="text-xs text-gray-400">{{ total.second_attended }} / {{ total.second_agendas }}</div>
-            </div>
-            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
-                <div class="text-xs text-gray-500 uppercase font-bold">Offer Rate</div>
-                <div class="text-2xl font-bold text-gray-800">{{ "%.1f"|format(kpis.offer_rate) }}%</div>
-                <div class="text-xs text-gray-400">{{ total.presentations }} pres.</div>
+                <div class="text-xs text-gray-500 uppercase font-bold">Show Rate</div>
+                <div class="text-2xl font-bold text-gray-800">{{ "%.1f"|format(kpis.show_rate) }}%</div>
+                <div class="text-xs text-gray-400">{{ total.calls_completed }} / {{ total.calls_scheduled }}</div>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
                 <div class="text-xs text-gray-500 uppercase font-bold">Closing Rate</div>
                 <div class="text-2xl font-bold text-gray-800">{{ "%.1f"|format(kpis.closing_rate) }}%</div>
-                <div class="text-xs text-gray-400">Sobre Presentaciones</div>
+                <div class="text-xs text-gray-400">Sobre Completadas</div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                <div class="text-xs text-gray-500 uppercase font-bold">Ticket Promedio</div>
+                <div class="text-2xl font-bold text-gray-800">${{ "%.0f"|format(kpis.avg_ticket) }}</div>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-purple-500">
                 <div class="text-xs text-gray-500 uppercase font-bold">Ventas Totales</div>
-                <div class="text-2xl font-bold text-gray-800">{{ kpis.total_sales }}</div>
-                <div class="text-xs text-gray-400">Call + Followup</div>
+                <div class="text-2xl font-bold text-gray-800">{{ total.sales_count }}</div>
+                <div class="text-xs text-gray-400">${{ "{:,.0f}".format(total.cash_collected) }} Cash</div>
             </div>
         </div>
 
@@ -71,13 +65,13 @@
                     <tr>
                         <th class="px-4 py-3">Fecha</th>
                         <th class="px-4 py-3">Closer</th>
-                        <th class="px-4 py-3 text-center bg-blue-50">1st Agda</th>
-                        <th class="px-4 py-3 text-center bg-blue-50">1st Att</th>
-                        <th class="px-4 py-3 text-center bg-yellow-50">Pres.</th>
-                        <th class="px-4 py-3 text-center bg-green-50">Venta Call</th>
-                        <th class="px-4 py-3 text-center bg-green-50">Venta Foll</th>
+                        <th class="px-4 py-3 text-center bg-blue-50">Agenda</th>
+                        <th class="px-4 py-3 text-center bg-blue-50">Completadas</th>
+                        <th class="px-4 py-3 text-center bg-red-50">No Show</th>
+                        <th class="px-4 py-3 text-center bg-gray-50">Cancel</th>
+                        <th class="px-4 py-3 text-center bg-green-50">Ventas</th>
+                        <th class="px-4 py-3 text-center bg-green-50">Monto</th>
                         <th class="px-4 py-3 text-center">Self Gen</th>
-                        <th class="px-4 py-3 text-center">Win</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -85,15 +79,17 @@
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 font-medium">{{ stat.date.strftime('%Y-%m-%d') }}</td>
                         <td class="px-4 py-3">{{ stat.closer.username }}</td>
-                        <td class="px-4 py-3 text-center bg-blue-50/50">{{ stat.first_agendas }}</td>
-                        <td class="px-4 py-3 text-center bg-blue-50/50 font-bold">{{ stat.first_agendas_attended }}</td>
-                        <td class="px-4 py-3 text-center bg-yellow-50/50">{{ stat.presentations }}</td>
-                        <td class="px-4 py-3 text-center bg-green-50/50 font-bold text-green-700">{{ stat.sales_on_call
-                            }}</td>
-                        <td class="px-4 py-3 text-center bg-green-50/50 text-green-700">{{ stat.sales_followup }}</td>
-                        <td class="px-4 py-3 text-center">{{ stat.self_generated_bookings }}</td>
-                        <td class="px-4 py-3 text-xs text-gray-500 truncate max-w-xs" title="{{ stat.win_of_day }}">{{
-                            stat.win_of_day }}</td>
+                        <td class="px-4 py-3 text-center bg-blue-50/50">{{ stat.calls_scheduled or 0 }}</td>
+                        <td class="px-4 py-3 text-center bg-blue-50/50 font-bold">{{ stat.calls_completed or 0 }}</td>
+                        <td class="px-4 py-3 text-center bg-red-50/50 text-red-600">{{ stat.calls_no_show or 0 }}</td>
+                        <td class="px-4 py-3 text-center bg-gray-50/50 text-gray-500">{{ stat.calls_canceled or 0 }}
+                        </td>
+                        <td class="px-4 py-3 text-center bg-green-50/50 font-bold text-green-700">{{ stat.sales_count or
+                            0 }}
+                        </td>
+                        <td class="px-4 py-3 text-center bg-green-50/50 text-green-700">${{
+                            "{:,.0f}".format(stat.sales_amount or 0) }}</td>
+                        <td class="px-4 py-3 text-center">{{ stat.self_generated_bookings or 0 }}</td>
                     </tr>
                     {% else %}
                     <tr>

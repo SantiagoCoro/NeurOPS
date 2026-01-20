@@ -14,31 +14,28 @@ def start_booking():
     utm_source = request.args.get('utm_source', 'direct')
     
     # 1. Identify Event & Funnel Steps
+    # 1. Identify Event & Funnel Steps
     event = Event.query.filter_by(utm_source=utm_source).first()
-    funnel_steps = ['contact', 'calendar', 'survey'] # Default
+    funnel_steps = ['identify', 'contact_details', 'survey', 'calendar'] # NEW FLOW
     
     # session.clear() -> This logs out admins! Use selective clear.
-    keys_to_clear = ['booking_data', 'booking_event_id', 'funnel_steps', 'funnel_index', 'booking_user_id', 'current_appt_id']
+    keys_to_clear = ['booking_data', 'booking_event_id', 'funnel_steps', 'funnel_index', 'booking_user_id', 'current_appt_id', 'booking_email_input']
     for k in keys_to_clear:
         session.pop(k, None)
         
     session['booking_utm'] = utm_source
     
-    # Init booking data container
-    session['booking_data'] = {
-        'answers': [],  # list of {question_id, answer}
-        'slot': None    # {date, time, closer_id}
-    }
+    # ... (referral logic same) ...
+
+    # ... (init booking data same) ...
 
     if event:
         session['booking_event_id'] = event.id
-        if event.funnel_steps:
-             funnel_steps = event.funnel_steps
-        elif event.group and event.group.funnel_steps:
-             funnel_steps = event.group.funnel_steps
-    else:
-        # Check if global group has defaults? For now uses hardcoded default.
-        pass
+        # We enforce the flow order in code now. 
+        # DB 'funnel_steps' is ignored for step ordering.
+    
+    # Standard Flow Enforced:
+    funnel_steps = ['identify', 'contact_details', 'survey', 'calendar']
 
     session['funnel_steps'] = funnel_steps
     session['funnel_index'] = 0
@@ -48,7 +45,7 @@ def start_booking():
 @bp.route('/booking/flow')
 def handle_flow():
     """Router: Redirects to the current step's view."""
-    steps = session.get('funnel_steps', ['contact', 'calendar', 'survey'])
+    steps = session.get('funnel_steps', ['identify', 'contact_details', 'survey', 'calendar'])
     index = session.get('funnel_index', 0)
     
     if index >= len(steps):
@@ -57,8 +54,12 @@ def handle_flow():
         
     current_step = steps[index]
     
-    if current_step == 'contact':
-        return redirect(url_for('booking.contact_view'))
+    if current_step == 'identify':
+        return redirect(url_for('booking.identify_view'))
+    elif current_step == 'contact_details':
+        return redirect(url_for('booking.contact_details_view'))
+    elif current_step == 'contact': # Legacy support
+        return redirect(url_for('booking.contact_details_view'))
     elif current_step == 'calendar':
         return redirect(url_for('booking.calendar_view'))
     elif current_step == 'survey':
@@ -74,8 +75,37 @@ def next_step():
     session['funnel_index'] = session.get('funnel_index', 0) + 1
     return redirect(url_for('booking.handle_flow'))
 
-@bp.route('/booking/contact', methods=['GET', 'POST'])
-def contact_view():
+@bp.route('/booking/identify', methods=['GET', 'POST'])
+def identify_view():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        if not email:
+            flash('El correo es obligatorio.', 'error')
+            return render_template('booking/identify.html')
+            
+        # Check if user exists
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            session['booking_user_id'] = user.id
+            flash(f'¡Hola de nuevo, {user.username}!', 'info')
+        else:
+            session.pop('booking_user_id', None)
+            session['booking_email_input'] = email
+            
+        return redirect(url_for('booking.next_step'))
+        
+    return render_template('booking/identify.html')
+
+@bp.route('/booking/details', methods=['GET', 'POST'])
+def contact_details_view():
+    user_id = session.get('booking_user_id')
+    email_input = session.get('booking_email_input')
+    
+    user = None
+    if user_id:
+        user = User.query.get(user_id)
+    
     # Helper to clean phone
     def clean_phone(code, number):
         if not number: return None
@@ -83,68 +113,79 @@ def contact_view():
 
     if request.method == 'POST':
         name = request.form.get('name')
-        email = request.form.get('email')
+        # If user exists, email is read-only or hidden usually, but form might send it?
+        # If new, email comes from session or form confirm.
+        
+        # New inputs
         phone_code = request.form.get('phone_code')
         phone_number = request.form.get('phone')
         instagram = request.form.get('instagram')
         
         full_phone = clean_phone(phone_code, phone_number)
-
-        if not email or not name:
-            flash('Nombre y Correo son obligatorios.')
-            return render_template('booking/landing.html', utm=session.get('booking_utm'))
-
-        # Create/Find User
-        user = User.query.filter_by(email=email).first()
         utm_source = session.get('booking_utm', 'direct')
-        
+
         if not user:
+            # Create NEW
+            email = email_input or request.form.get('email')
+            if not email:
+                flash('Error de sesión. Por favor inicie nuevamente.')
+                return redirect(url_for('booking.start_booking'))
+                
             temp_pass = str(uuid.uuid4())
-            base_username = email
-            if len(base_username) > 64:
-                base_username = base_username[:64]
-            
-            username = base_username
-            # Ensure uniqueness
+            base_username = name or email.split('@')[0]
+            # ... username uniqueness logic ...
+            username = base_username[:60]
             while User.query.filter_by(username=username).first():
                 import random
-                suffix = f"_{random.randint(1000, 9999)}"
-                # Ensure suffix fits
-                if len(base_username) + len(suffix) > 64:
-                    username = base_username[:64-len(suffix)] + suffix
-                else:
-                    username = base_username + suffix
-            
+                username = f"{base_username}_{random.randint(1000,9999)}"[:64]
+                
             user = User(username=username, email=email, role='lead')
             user.set_password(temp_pass)
             db.session.add(user)
             db.session.flush()
             
-            # New leads start as 'new' status
             profile = LeadProfile(user_id=user.id, phone=full_phone, instagram=instagram, utm_source=utm_source, status='new')
             db.session.add(profile)
             db.session.commit()
+            
+            session['booking_user_id'] = user.id
+            
         else:
+            # Update EXISTING
+            if name: user.username = name
+            
             if user.lead_profile:
                 if full_phone: user.lead_profile.phone = full_phone
                 if instagram: user.lead_profile.instagram = instagram
-                user.lead_profile.utm_source = utm_source 
+                # Don't overwrite UTM source of existing lead usually, or maybe append? Keep original.
             else:
                 profile = LeadProfile(user_id=user.id, phone=full_phone, instagram=instagram, utm_source=utm_source, status='new')
                 db.session.add(profile)
             
-            # Update name if provided
-            if name: user.username = name
             db.session.commit()
             
-        session['booking_user_id'] = user.id
-        
-        # FLUSH CACHED DATA (If any from previous steps, though unlikely here)
-        _flush_session_data(user.id)
-        
         return redirect(url_for('booking.next_step'))
-        
-    return render_template('booking/landing.html', utm=session.get('booking_utm'))
+
+    # GET
+    prefill = {}
+    if user:
+        prefill['email'] = user.email
+        prefill['name'] = user.username
+        if user.lead_profile:
+            # Split phone into code and number if possible
+            if user.lead_profile.phone and ' ' in user.lead_profile.phone:
+                parts = user.lead_profile.phone.split(' ', 1)
+                prefill['phone_code'] = parts[0]
+                prefill['phone'] = parts[1]
+            else:
+                prefill['phone'] = user.lead_profile.phone
+                
+            prefill['instagram'] = user.lead_profile.instagram
+    else:
+         prefill['email'] = email_input
+         
+    return render_template('booking/contact_details.html', data=prefill)
+
 
 def _flush_session_data(user_id):
     """Saves cached slot/answers to DB for this user."""
@@ -153,36 +194,35 @@ def _flush_session_data(user_id):
     # 1. Flush Slot -> Appointment
     slot = bdata.get('slot')
     if slot:
-        # Re-check availability? strictly yes
-        # For MVP, assume still free or fail gracefully.
-        
-        start_time = datetime.strptime(f"{slot['date']} {slot['time']}", "%Y-%m-%d %H:%M:%S")
-        
-        # Check duplicate
-        exists = Appointment.query.filter_by(closer_id=slot['closer_id'], start_time=start_time).filter(Appointment.status!='canceled').first()
-        if not exists:
-            appt = Appointment(
-                closer_id=slot['closer_id'],
-                lead_id=user_id,
-                start_time=start_time,
-                status='scheduled', # or pending_survey? if survey not done yet
-                event_id=session.get('booking_event_id')
-            )
-            db.session.add(appt)
-            db.session.commit()
-            session['current_appt_id'] = appt.id
+        utc_iso = slot.get('utc_iso')
+        if utc_iso:
+            start_time = datetime.fromisoformat(utc_iso.replace('Z', '+00:00')).replace(tzinfo=None)
             
-            # Trigger Webhook
-            send_calendar_webhook(appt, 'created')
-            
-            # Update User Status to 'agenda' (but keep role as 'lead')
-            user = User.query.get(user_id)
-            if user and user.lead_profile:
-                user.lead_profile.status = 'agenda'
-                db.session.add(user.lead_profile)
+            # Check duplicate
+            exists = Appointment.query.filter_by(closer_id=slot['closer_id'], start_time=start_time).filter(Appointment.status!='canceled').first()
+            if not exists:
+                appt = Appointment(
+                    closer_id=slot['closer_id'],
+                    lead_id=user_id,
+                    start_time=start_time,
+                    status='scheduled', # or pending_survey? if survey not done yet
+                    event_id=session.get('booking_event_id')
+                )
+                db.session.add(appt)
                 db.session.commit()
-            
-            # Clear slot from session
+                session['current_appt_id'] = appt.id
+                
+                # Trigger Webhook
+                send_calendar_webhook(appt, 'created')
+                
+                # Update User Status automatically
+                user = User.query.get(user_id)
+                if user:
+                    user.update_status_based_on_debt()
+                
+                # Clear slot from session
+                bdata['slot'] = None
+                session['booking_data'] = bdata
             bdata['slot'] = None
             session['booking_data'] = bdata
 
@@ -211,74 +251,128 @@ def _flush_session_data(user_id):
 
 @bp.route('/booking/calendar')
 def calendar_view():
-    # Logic same as before for fetching slots
+    import pytz
+    
+    # 1. Fetch Availability (Stored in Closer's Local Time - assumed per closer)
+    # Optimization: Filter roughly by date range first
     today = date.today()
     end_date = today + timedelta(days=14)
-    availabilities = Availability.query.filter(Availability.date >= today, Availability.date <= end_date).all()
+    # Filter by date AND ensure role is 'closer' (exclude admins)
+    availabilities = Availability.query.join(Availability.closer).filter(
+        Availability.date >= today, 
+        Availability.date <= end_date,
+        User.role == 'closer'
+    ).all()
+    
+    # 2. Fetch Appointments (Stored in UTC)
+    # Need to filter effectively in UTC, so convert range to UTC
+    # Since we don't know closer TZ yet, just fetch broad range
     appointments = Appointment.query.filter(
-        Appointment.start_time >= datetime.combine(today, time.min),
-        Appointment.start_time <= datetime.combine(end_date, time.max),
+        Appointment.start_time >= datetime.utcnow(),
+        Appointment.start_time <= datetime.utcnow() + timedelta(days=15),
         Appointment.status != 'canceled'
     ).all()
     
     booked_slots = set()
     for appt in appointments:
+        # appt.start_time is naive but implicitly UTC
         booked_slots.add((appt.closer_id, appt.start_time))
         
-    daily_slots = {}
-    for i in range(15):
-        d = today + timedelta(days=i)
-        daily_slots[d] = set()
+    daily_slots_utc = {} # Key: Date (User's perspective? No, keep simple list) -> actually list of objects
+    # We will send a flat list of available slots in UTC to the frontend
+    # and let JS handle the Grouping by Day (Client Time)
     
-    for av in availabilities:
-        slot_dt = datetime.combine(av.date, av.start_time)
-        if slot_dt < datetime.now(): continue
-        if (av.closer_id, slot_dt) not in booked_slots:
-            daily_slots[av.date].add(av.start_time)
-            
-    sorted_schedule = []
-    days_map = {0:'Lunes', 1:'Martes', 2:'Miércoles', 3:'Jueves', 4:'Viernes', 5:'Sábado', 6:'Domingo'}
-    months_map = {1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril', 5:'Mayo', 6:'Junio', 7:'Julio', 8:'Agosto', 9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'}
+    available_slots_utc = []
+    
+    unique_slots = {}
+    preferred_id = session.get('preferred_closer_id')
 
-    for d in sorted(daily_slots.keys()):
-        times = sorted(list(daily_slots[d]))
-        if times:
-            display_str = f"{days_map[d.weekday()]} {d.day} de {months_map[d.month]}"
-            sorted_schedule.append({'date': d, 'display': display_str, 'slots': times})
+    for av in availabilities:
+        closer = av.closer
+        if not closer: continue
+        
+        # Get Closer Timezone
+        try:
+            closer_tz = pytz.timezone(closer.timezone or 'America/La_Paz')
+        except pytz.UnknownTimeZoneError:
+            closer_tz = pytz.timezone('America/La_Paz')
             
-    return render_template('booking/calendar.html', schedule=sorted_schedule)
+        # Create Local Datetime
+        local_dt = datetime.combine(av.date, av.start_time) # Naive
+        local_dt = closer_tz.localize(local_dt) # Aware (Closer Time)
+        
+        # Convert to UTC
+        utc_dt = local_dt.astimezone(pytz.UTC).replace(tzinfo=None) # Make naive UTC for comparison with DB
+        
+        # Filter Past
+        if utc_dt < datetime.utcnow(): continue
+        
+        # Check Booking (utc_dt)
+        if (av.closer_id, utc_dt) not in booked_slots:
+            ts_key = utc_dt
+            
+            # If not present, add it
+            if ts_key not in unique_slots:
+                unique_slots[ts_key] = {
+                    'utc_iso': utc_dt.isoformat() + 'Z', # Explicit Z for JS
+                    'closer_id': av.closer_id,
+                    'ts': utc_dt.timestamp()
+                }
+            # If present, check if we should swap for preferred closer
+            elif preferred_id and av.closer_id == preferred_id:
+                 unique_slots[ts_key]['closer_id'] = av.closer_id
+            
+    available_slots_utc = list(unique_slots.values())
+    
+    # DEBUG: Print what we are sending
+    print(f"DEBUG SLOTS sending to frontend ({len(available_slots_utc)}):")
+    for s in available_slots_utc:
+        print(f"  -> {s['utc_iso']} (Closer {s['closer_id']})")
+            
+    # Sort by time
+    available_slots_utc.sort(key=lambda x: x['ts'])
+    
+    # We pass raw slots to frontend, JS will group them
+    return render_template('booking/calendar.html', slots_json=available_slots_utc)
 
 @bp.route('/booking/select', methods=['POST'])
 def select_slot():
-    date_str = request.form.get('date')
-    time_str = request.form.get('time')
-    selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    selected_time = datetime.strptime(time_str, '%H:%M').time()
+    import pytz
+    # We expect 'utc_iso' or explicit components. Let's rely on 'utc_iso' from frontend if possible, 
+    # OR we can reconstruct if frontend sends localized date/time + offset?
+    # Simplest: Frontend sends 'closer_id' AND 'utc_iso' for the chosen slot.
+    # But wait, original flow picked closer dynamically. 
+    # With UTC slots pre-calculated in calendar_view, each slot already belongs to a specific closer.
     
-    # Find closer
-    candidates = Availability.query.filter_by(date=selected_date, start_time=selected_time).all()
-    chosen_closer_id = None
-    for cand in candidates:
-        appt_time = datetime.combine(selected_date, selected_time)
-        conflict = Appointment.query.filter_by(closer_id=cand.closer_id, start_time=appt_time).filter(Appointment.status != 'canceled').first()
-        if not conflict:
-            chosen_closer_id = cand.closer_id
-            break
-            
-    if not chosen_closer_id:
+    utc_iso = request.form.get('utc_iso')
+    closer_id = request.form.get('closer_id')
+    
+    if not utc_iso or not closer_id:
+        flash('Error en la selección de horario. Intente nuevamente.')
+        return redirect(url_for('booking.calendar_view'))
+        
+    start_time_utc = datetime.fromisoformat(utc_iso.replace('Z', '+00:00')).replace(tzinfo=None) # Naive UTC
+    chosen_closer_id = int(closer_id)
+
+    # Double Check Availability (Concurrency)
+    # Since Availability is Local, and Appointment is UTC, we must verify logic carefully.
+    # Actually, we trusted the 'calendar_view' calculation.
+    # Let's check overlap with Appointment (UTC)
+    conflict = Appointment.query.filter_by(closer_id=chosen_closer_id, start_time=start_time_utc).filter(Appointment.status != 'canceled').first()
+    
+    if conflict:
         flash('Lo sentimos, este horario acaba de ser ocupado.')
         return redirect(url_for('booking.calendar_view'))
         
     # Check if User exists
     user_id = session.get('booking_user_id')
-    print(f"DEBUG: select_slot user_id={user_id}")
     
     if user_id:
-        # Create immediately
+        # Create immediately (in UTC)
         appt = Appointment(
             closer_id=chosen_closer_id,
             lead_id=user_id,
-            start_time=datetime.combine(selected_date, selected_time),
+            start_time=start_time_utc, # Stored as UTC
             status='scheduled',
             event_id=session.get('booking_event_id')
         )
@@ -286,32 +380,24 @@ def select_slot():
         db.session.commit()
         session['current_appt_id'] = appt.id
         
-        # Update User Status to 'agenda'
+        # Update User Status automatically
         user = User.query.get(user_id)
         if user:
-            print(f"DEBUG: User found {user.username}. Profile: {user.lead_profile}")
-            if user.lead_profile:
-                print(f"DEBUG: Updating status from {user.lead_profile.status} to agenda")
-                user.lead_profile.status = 'agenda'
-                db.session.add(user.lead_profile)
-                db.session.commit()
-                print("DEBUG: Status committed")
-            else:
-                 print("DEBUG: No lead_profile found")
-        else:
-             print("DEBUG: User not found in DB")
+            user.update_status_based_on_debt()
             
         send_calendar_webhook(appt, 'created')
     else:
-        # Cache in Session
+        # Save to session (UTC) and redirect
         bdata = session.get('booking_data', {})
         bdata['slot'] = {
-            'date': date_str,
-            'time': f"{selected_time.hour}:{selected_time.minute:02d}:00", # Stringify
+            'utc_iso': utc_iso,
             'closer_id': chosen_closer_id
         }
         session['booking_data'] = bdata
-    
+        _flush_session_data(user_id) # Won't flush if user_id None, just saves to session
+        
+        return redirect(url_for('booking.next_step'))
+        
     return redirect(url_for('booking.next_step'))
 
 @bp.route('/booking/survey', methods=['GET', 'POST'])
@@ -332,8 +418,15 @@ def survey_view():
         
     questions = query.order_by(SurveyQuestion.order).all()
     
+    existing_answers = {}
+    user_id = session.get('booking_user_id')
+    if user_id:
+        prev_answers = SurveyAnswer.query.filter_by(lead_id=user_id).all()
+        # Create map {question_id: answer_text}
+        for pa in prev_answers:
+            existing_answers[pa.question_id] = pa.answer
+
     if request.method == 'POST':
-        user_id = session.get('booking_user_id')
         appt_id = session.get('current_appt_id')
         
         # Collect answers
@@ -344,10 +437,18 @@ def survey_view():
                 answers_data.append({'question_id': q.id, 'answer': ans_text})
         
         if user_id:
-            # Save immediately
+            # Save immediately (Upsert)
             for item in answers_data:
-                ans = SurveyAnswer(lead_id=user_id, question_id=item['question_id'], answer=item['answer'], appointment_id=appt_id)
-                db.session.add(ans)
+                # Check existing
+                existing = SurveyAnswer.query.filter_by(lead_id=user_id, question_id=item['question_id']).first()
+                if existing:
+                    existing.answer = item['answer']
+                    # Link appt logic? usually survey is general or linked to specific appt? 
+                    # If we want history, we should create new answer if appt_id differs? 
+                    # For now, simplistic: update current profile answer.
+                else:
+                    ans = SurveyAnswer(lead_id=user_id, question_id=item['question_id'], answer=item['answer'], appointment_id=appt_id)
+                    db.session.add(ans)
             db.session.commit()
         else:
             # Cache
@@ -360,7 +461,7 @@ def survey_view():
 
         return redirect(url_for('booking.next_step'))
         
-    return render_template('booking/survey.html', questions=questions)
+    return render_template('booking/survey.html', questions=questions, existing_answers=existing_answers)
 
 @bp.route('/booking/thankyou')
 def thank_you():

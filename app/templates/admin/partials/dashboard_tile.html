@@ -1,0 +1,22 @@
+{% macro dashboard_tile(title, value, value_class='', subtext='', icon_path='', color='gray') %}
+<div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm border-l-4 border-{{ color }}-500">
+    <div class="flex items-center">
+        {% if icon_path %}
+        <div class="p-2 rounded-full bg-{{ color }}-50 text-{{ color }}-500">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon_path }}" />
+            </svg>
+        </div>
+        {% endif %}
+        <div class="ml-3">
+            <p class="text-xs text-gray-500 font-bold uppercase tracking-wide">{{ title }}</p>
+            <p class="text-2xl font-extrabold text-gray-800 mt-1 {{ value_class }}">{{ value }}</p>
+            {% if subtext %}
+            <div class="text-xs text-gray-400 mt-1">
+                {{ subtext | safe }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}

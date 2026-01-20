@@ -54,58 +54,129 @@
             {% endif %}
             {% endwith %}
 
-            <h3 class="text-lg font-bold text-gray-800 mb-6">Selecciona una fecha y hora</h3>
+            <h3 class="text-lg font-bold text-gray-800 mb-2">Selecciona una fecha y hora</h3>
+            <p class="text-sm text-gray-500 mb-6 flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Zona Horaria Detectada: <strong id="timezone-display">Detectando...</strong>
+            </p>
 
-            {% if not schedule %}
-            <div class="text-center py-10 text-gray-400">
-                <p>No hay disponibilidad en los próximos días.</p>
-            </div>
-            {% else %}
-            <div class="flex flex-col gap-4">
-                {% for day in schedule %}
-                <div class="border rounded-lg overflow-hidden">
-                    <div class="bg-gray-50 px-4 py-2 border-b font-semibold text-gray-700 text-sm flex justify-between items-center cursor-pointer hover:bg-gray-100 transition"
-                        onclick="toggleDay('{{ day.date }}')">
-                        <span>{{ day.display }}</span>
-                        <span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">{{ day.slots|length }}
-                            espacios</span>
-                    </div>
-                    <div id="slots-{{ day.date }}"
-                        class="p-4 grid grid-cols-3 sm:grid-cols-4 gap-2 hidden group-open:block">
-                        {% for time in day.slots %}
-                        <form action="{{ url_for('booking.select_slot') }}" method="POST">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                            <input type="hidden" name="date" value="{{ day.date }}">
-                            <input type="hidden" name="time" value="{{ time.strftime('%H:%M') }}">
-                            <button type="submit"
-                                class="w-full py-2 px-1 text-sm text-indigo-700 border border-indigo-200 rounded hover:bg-indigo-600 hover:text-white transition">
-                                {{ time.strftime('%H:%M') }}
-                            </button>
-                        </form>
-                        {% endfor %}
-                    </div>
+            <div id="slots-container" class="flex flex-col gap-4">
+                <!-- JS will populate this -->
+                <div class="text-center py-10 text-gray-400" id="loading-slots">
+                    <p>Cargando disponibilidad...</p>
                 </div>
-                {% endfor %}
             </div>
-            {% endif %}
         </div>
     </div>
 
+    <!-- Data from Backend -->
     <script>
-        function toggleDay(dateStr) {
-            const el = document.getElementById('slots-' + dateStr);
-            if (el.classList.contains('hidden')) {
-                // Close others (Optional, for accordion effect)
-                document.querySelectorAll('[id^=slots-]').forEach(x => x.classList.add('hidden'));
-                el.classList.remove('hidden');
-            } else {
-                el.classList.add('hidden');
-            }
-        }
+        const rawSlots = {{ slots_json| tojson }};
+    </script>
 
-        // Open first day by default
-        const first = document.querySelector('[id^=slots-]');
-        if (first) first.classList.remove('hidden');
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('slots-container');
+            const loading = document.getElementById('loading-slots');
+            const tzDisplay = document.getElementById('timezone-display');
+
+            // 1. Detect Timezone
+            const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            tzDisplay.textContent = userTimeZone;
+
+            if (!rawSlots || rawSlots.length === 0) {
+                loading.innerHTML = "<p>No hay disponibilidad en los próximos días.</p>";
+                return;
+            }
+
+            loading.remove();
+
+            // 2. Group Slots by Local Day
+            const slotsByDay = {}; // Key: "YYYY-MM-DD", Value: {display, slots: []}
+
+            // Formatters
+            const dayFormatter = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            const timeFormatter = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+            rawSlots.forEach(slot => {
+                const dateObj = new Date(slot.utc_iso); // Created from ISO String (Browser uses local TZ)
+                const dateKey = dateObj.toLocaleDateString('en-CA'); // YYYY-MM-DD local
+
+                if (!slotsByDay[dateKey]) {
+                    slotsByDay[dateKey] = {
+                        date: dateKey,
+                        display: capitalizeFirst(dayFormatter.format(dateObj)),
+                        slots: []
+                    };
+                }
+
+                slotsByDay[dateKey].slots.push({
+                    timeStr: timeFormatter.format(dateObj),
+                    utc_iso: slot.utc_iso,
+                    closer_id: slot.closer_id,
+                    obj: dateObj
+                });
+            });
+
+            // 3. Render
+            const sortedDays = Object.keys(slotsByDay).sort();
+
+            sortedDays.forEach(dayKey => {
+                const dayData = slotsByDay[dayKey];
+                const dayEl = document.createElement('div');
+                dayEl.className = 'border rounded-lg overflow-hidden';
+
+                const header = document.createElement('div');
+                header.className = 'bg-gray-50 px-4 py-2 border-b font-semibold text-gray-700 text-sm flex justify-between items-center cursor-pointer hover:bg-gray-100 transition';
+                header.innerHTML = `<span>${dayData.display}</span> <span class="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">${dayData.slots.length} espacios</span>`;
+
+                const slotsGrid = document.createElement('div');
+                slotsGrid.className = 'p-4 grid grid-cols-3 sm:grid-cols-4 gap-2 hidden';
+                slotsGrid.id = `day-slots-${dayKey}`;
+
+                // Toggle Logic
+                header.onclick = () => {
+                    if (slotsGrid.classList.contains('hidden')) {
+                        // Close others
+                        document.querySelectorAll('[id^="day-slots-"]').forEach(el => el.classList.add('hidden'));
+                        slotsGrid.classList.remove('hidden');
+                    } else {
+                        slotsGrid.classList.add('hidden');
+                    }
+                };
+
+                dayData.slots.forEach(s => {
+                    const form = document.createElement('form');
+                    form.action = "{{ url_for('booking.select_slot') }}";
+                    form.method = "POST";
+
+                    form.innerHTML = `
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="utc_iso" value="${s.utc_iso}">
+                        <input type="hidden" name="closer_id" value="${s.closer_id}">
+                        <button type="submit" class="w-full py-2 px-1 text-sm text-indigo-700 border border-indigo-200 rounded hover:bg-indigo-600 hover:text-white transition">
+                            ${s.timeStr}
+                        </button>
+                    `;
+                    slotsGrid.appendChild(form);
+                });
+
+                dayEl.appendChild(header);
+                dayEl.appendChild(slotsGrid);
+                container.appendChild(dayEl);
+            });
+
+            // Open first day
+            const firstGrid = container.querySelector('[id^="slots-"]');
+            if (firstGrid) firstGrid.classList.remove('hidden');
+        });
+
+        function capitalizeFirst(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
     </script>
 </body>
 

@@ -354,10 +354,8 @@
                             if (kpiDebtAgreed) kpiDebtAgreed.textContent = Math.round(data.kpis.debt_agreed).toLocaleString();
                             if (kpiDebtPaid) kpiDebtPaid.textContent = Math.round(data.kpis.debt_paid).toLocaleString();
 
-                            // Update Programs List only if possible (complex HTML structure, maybe skip or clear/rebuild simpler)
-                            // For now we skip rebuilding the lists to avoid complexity in JS, 
-                            // or we could clear and rebuild if we had a template string. 
-                            // Let's rely on main numbers for now.
+                            // Update Lists
+                            updateKpiLists(data.kpis);
                         }
 
                         // Update Load More Button visibility
@@ -368,6 +366,56 @@
                         }
                     })
                     .catch(err => console.error('Error updating leads:', err));
+            }
+
+            function updateKpiLists(kpis) {
+                // Programs
+                let progHtml = '<span class="text-gray-400 text-xs font-bold uppercase tracking-widest flex-shrink-0">Inscripciones:</span>';
+                if (kpis.programs && Object.keys(kpis.programs).length > 0) {
+                    for (const [prog, count] of Object.entries(kpis.programs)) {
+                        const percent = kpis.total_programs > 0 ? Math.round((count / kpis.total_programs) * 100) : 0;
+                        progHtml += `
+                        <div class="flex items-center bg-gray-50 rounded-full px-3 py-1 flex-shrink-0 border border-gray-100">
+                            <span class="w-2 h-2 rounded-full mr-2 bg-indigo-400"></span>
+                            <span class="capitalize text-gray-600 text-xs mr-2">${prog}</span>
+                            <span class="font-bold text-gray-800 text-xs">${count}</span>
+                            <span class="text-[10px] text-gray-400 ml-1">(${percent}%)</span>
+                        </div>`;
+                    }
+                } else {
+                    progHtml += '<div class="text-xs text-gray-400">Sin datos</div>';
+                }
+                kpiProgramsList.innerHTML = progHtml;
+
+                // Statuses
+                let statHtml = '<span class="text-gray-400 text-xs font-bold uppercase tracking-widest flex-shrink-0">Estados:</span>';
+                if (kpis.statuses && Object.keys(kpis.statuses).length > 0) {
+                    for (const [status, count] of Object.entries(kpis.statuses)) {
+                        const percent = kpis.total_statuses > 0 ? Math.round((count / kpis.total_statuses) * 100) : 0;
+                        const colorClass = getStatusColor(status);
+                        const statusName = status || 'Sin estado';
+
+                        statHtml += `
+                        <div class="flex items-center bg-gray-50 rounded-full px-3 py-1 flex-shrink-0 border border-gray-100">
+                            <span class="w-2 h-2 rounded-full mr-2 ${colorClass}"></span>
+                            <span class="capitalize text-gray-600 text-xs mr-2">${statusName}</span>
+                            <span class="font-bold text-gray-800 text-xs">${count}</span>
+                            <span class="text-[10px] text-gray-400 ml-1">(${percent}%)</span>
+                        </div>`;
+                    }
+                }
+                kpiStatusesList.innerHTML = statHtml;
+            }
+
+            function getStatusColor(status) {
+                switch (status) {
+                    case 'completed': return 'bg-green-400';
+                    case 'pending': return 'bg-yellow-400';
+                    case 'agenda': return 'bg-indigo-400';
+                    case 'renewed': return 'bg-purple-400';
+                    case 'new': return 'bg-blue-400';
+                    default: return 'bg-gray-400';
+                }
             }
 
             // Event Listeners for Filter Inputs

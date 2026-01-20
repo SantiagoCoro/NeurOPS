@@ -281,102 +281,148 @@ def update_lead_quick(id):
     flash('Cliente actualizado.')
     return redirect(url_for('closer.leads_list'))
 
+import pytz
+from datetime import time
 from app.closer.forms import SaleForm, CloserPaymentForm, LeadForm, CloserStatsForm
-from app.models import CloserDailyStats
+from app.models import CloserDailyStats, DailyReportQuestion, DailyReportAnswer
 from app.decorators import role_required
 
-@bp.route('/closer/stats', methods=['GET', 'POST'])
-@login_required
-@role_required('closer')
-def daily_stats():
-    form = CloserStatsForm()
+@bp.route('/daily_report', methods=['GET', 'POST'])
+@closer_required
+def daily_report():
+    # Timezone handling
+    tz_name = current_user.timezone or 'America/La_Paz'
+    try:
+        user_tz = pytz.timezone(tz_name)
+    except:
+        user_tz = pytz.timezone('America/La_Paz')
+        
+    now_local = datetime.now(user_tz)
+    today_local = now_local.date()
     
-    # Pre-fill for today if exists
-    today = datetime.today().date()
-    stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today).first()
+    # --- Automated KPI Calculation (Live for Today) ---
+    start_local = user_tz.localize(datetime.combine(today_local, time.min))
+    end_local = user_tz.localize(datetime.combine(today_local, time.max))
     
-    if request.method == 'GET' and stats:
-        form.date.data = stats.date
-        form.slots_available.data = stats.slots_available
-        form.first_agendas.data = stats.first_agendas
-        form.first_agendas_attended.data = stats.first_agendas_attended
-        form.first_agendas_no_show.data = stats.first_agendas_no_show
-        form.first_agendas_rescheduled.data = stats.first_agendas_rescheduled
-        form.first_agendas_canceled.data = stats.first_agendas_canceled
-        
-        form.second_agendas.data = stats.second_agendas
-        form.second_agendas_attended.data = stats.second_agendas_attended
-        form.second_agendas_no_show.data = stats.second_agendas_no_show
-        form.second_agendas_rescheduled.data = stats.second_agendas_rescheduled
-        form.second_agendas_canceled.data = stats.second_agendas_canceled
-        
-        form.second_calls_booked.data = stats.second_calls_booked
-        form.presentations.data = stats.presentations
-        form.sales_on_call.data = stats.sales_on_call
-        form.sales_followup.data = stats.sales_followup
-        
-        form.followups_started_booking.data = stats.followups_started_booking
-        form.followups_started_closing.data = stats.followups_started_closing
-        
-        form.replies_booking.data = stats.replies_booking
-        form.replies_sales.data = stats.replies_sales
-        form.self_generated_bookings.data = stats.self_generated_bookings
-        
-        form.notion_completed.data = '1' if stats.notion_completed else '0'
-        form.objection_form_completed.data = '1' if stats.objection_form_completed else '0'
-        
-        form.win_of_day.data = stats.win_of_day
-        form.improvement_area.data = stats.improvement_area
-    elif request.method == 'GET':
-        form.date.data = today
+    start_utc = start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    end_utc = end_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    # 1. Calls
+    appointments_today = Appointment.query.filter(
+        Appointment.closer_id == current_user.id,
+        Appointment.start_time >= start_utc,
+        Appointment.start_time <= end_utc
+    ).all()
+    
+    kpi_scheduled = len(appointments_today)
+    kpi_completed = sum(1 for a in appointments_today if a.status == 'completed')
+    kpi_no_show = sum(1 for a in appointments_today if a.status == 'no_show')
+    kpi_canceled = sum(1 for a in appointments_today if a.status == 'canceled')
+    
+    # 2. Sales & Cash
+    # Filter payments made today on enrollments owned by this closer
+    # Need to be careful: Enrollment closer_id vs Payment Date
+    # We want "Cash Collected Today" by this closer. 
+    # Usually strictly payments received today, on enrollments assigned to this closer.
+    
+    payments_today = Payment.query.join(Enrollment).filter(
+        Enrollment.closer_id == current_user.id,
+        Payment.date >= start_utc,
+        Payment.date <= end_utc,
+        Payment.status == 'completed'
+    ).all()
+    
+    kpi_sales_count = 0
+    kpi_sales_amount = 0.0 # Total agreed value of sales made today (Enrollments created today)
+    kpi_cash_collected = 0.0 # Actual money received today
+    
+    # Sales Count = New Enrollments Today
+    new_enrollments = Enrollment.query.filter(
+        Enrollment.closer_id == current_user.id,
+        Enrollment.enrollment_date >= start_utc,
+        Enrollment.enrollment_date <= end_utc,
+        Enrollment.status != 'dropped'
+    ).all()
+    
+    kpi_sales_count = len(new_enrollments)
+    kpi_sales_amount = sum(e.total_agreed for e in new_enrollments)
+    
+    # Cash Collected
+    kpi_cash_collected = sum(p.amount for p in payments_today)
+    
+    # 3. Calculated Rates (Real-time for Today)
+    kpi_show_rate = (kpi_completed / kpi_scheduled * 100) if kpi_scheduled > 0 else 0
+    kpi_closing_rate = (kpi_sales_count / kpi_completed * 100) if kpi_completed > 0 else 0
+    kpi_avg_ticket = (kpi_sales_amount / kpi_sales_count) if kpi_sales_count > 0 else 0
 
-    if form.validate_on_submit():
-        date_input = form.date.data
+    # --- Questions ---
+    questions = DailyReportQuestion.query.filter_by(is_active=True).order_by(DailyReportQuestion.order).all()
+    
+    # Check if report exists for today
+    today_stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today_local).first()
+    
+    if request.method == 'POST':
+        if not today_stats:
+            today_stats = CloserDailyStats(closer_id=current_user.id, date=today_local)
+            db.session.add(today_stats)
         
-        # Check if exists for date (or update existing)
-        existing = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=date_input).first()
-        if existing:
-            stats = existing
-        else:
-            stats = CloserDailyStats(closer_id=current_user.id, date=date_input)
-            db.session.add(stats)
+        # Update/Save Automated KPIs (Snapshot)
+        today_stats.calls_scheduled = kpi_scheduled
+        today_stats.calls_completed = kpi_completed
+        today_stats.calls_no_show = kpi_no_show
+        today_stats.calls_canceled = kpi_canceled
+        today_stats.sales_count = kpi_sales_count
+        today_stats.sales_amount = kpi_sales_amount
+        today_stats.cash_collected = kpi_cash_collected
+        
+        # Manual Metrics (Legacy) - kept generic if form has them? 
+        # For now, user only asked to replace manual with automated and use questions for rest.
+        # Only self_generated_bookings remains 'manual' if not trackable.
+        # We can accept it from form if present, else 0.
+        today_stats.self_generated_bookings = request.form.get('self_generated_bookings', 0, type=int)
+
+        db.session.commit() # Save stats to get ID
+        
+        # Save Answers
+        # Clear old answers for this report to avoid duplicates if re-submitting?
+        # Or just update. Simpler to delete old for this day/question set.
+        current_answers = DailyReportAnswer.query.filter_by(daily_stats_id=today_stats.id).all()
+        for ans in current_answers:
+            db.session.delete(ans)
             
-        stats.slots_available = form.slots_available.data
-        stats.first_agendas = form.first_agendas.data
-        stats.first_agendas_attended = form.first_agendas_attended.data
-        stats.first_agendas_no_show = form.first_agendas_no_show.data
-        stats.first_agendas_rescheduled = form.first_agendas_rescheduled.data
-        stats.first_agendas_canceled = form.first_agendas_canceled.data
-        
-        stats.second_agendas = form.second_agendas.data
-        stats.second_agendas_attended = form.second_agendas_attended.data
-        stats.second_agendas_no_show = form.second_agendas_no_show.data
-        stats.second_agendas_rescheduled = form.second_agendas_rescheduled.data
-        stats.second_agendas_canceled = form.second_agendas_canceled.data
-        
-        stats.second_calls_booked = form.second_calls_booked.data
-        stats.presentations = form.presentations.data
-        stats.sales_on_call = form.sales_on_call.data
-        stats.sales_followup = form.sales_followup.data
-        
-        stats.followups_started_booking = form.followups_started_booking.data
-        stats.followups_started_closing = form.followups_started_closing.data
-        
-        stats.replies_booking = form.replies_booking.data
-        stats.replies_sales = form.replies_sales.data
-        stats.self_generated_bookings = form.self_generated_bookings.data
-        
-        stats.notion_completed = (form.notion_completed.data == '1')
-        stats.objection_form_completed = (form.objection_form_completed.data == '1')
-        
-        stats.win_of_day = form.win_of_day.data
-        stats.improvement_area = form.improvement_area.data
+        for q in questions:
+            ans_text = request.form.get(f'question_{q.id}')
+            if q.question_type == 'boolean':
+                # Checkbox sends 'on' or nothing.
+                ans_text = 'Sí' if request.form.get(f'question_{q.id}') else 'No'
+            
+            if ans_text:
+                new_ans = DailyReportAnswer(
+                    daily_stats_id=today_stats.id,
+                    question_id=q.id,
+                    answer=str(ans_text)
+                )
+                db.session.add(new_ans)
         
         db.session.commit()
-        flash('Reporte diario guardado exitosamente.', 'success')
-        return redirect(url_for('closer.daily_stats'))
+        flash('Reporte diario guardado exitosamente.')
+        return redirect(url_for('closer.dashboard'))
 
-    return render_template('closer/daily_stats.html', form=form)
+    return render_template('closer/daily_report.html', 
+                           questions=questions,
+                           kpi_scheduled=kpi_scheduled,
+                           kpi_completed=kpi_completed,
+                           kpi_no_show=kpi_no_show,
+                           kpi_canceled=kpi_canceled,
+                           kpi_sales_count=kpi_sales_count,
+                           kpi_sales_amount=kpi_sales_amount,
+                           kpi_cash_collected=kpi_cash_collected,
+                           kpi_show_rate=kpi_show_rate,
+                           kpi_closing_rate=kpi_closing_rate,
+                           kpi_avg_ticket=kpi_avg_ticket,
+                           today_stats=today_stats, 
+                           today=today_local
+                           )
 from app.closer.utils import send_calendar_webhook
 from app.closer.utils import send_sales_webhook
 import uuid
@@ -485,18 +531,31 @@ def create_appointment():
         form.lead_id.data = lead_id
 
     if form.validate_on_submit():
-        # TODO: Validate closer availability? 
+        # Validate closer availability? 
         # For manual override, we assume the closer knows what they are doing.
-        start_dt = datetime.combine(form.date.data, form.time.data)
+        
+        # Timezone Handling: Input is Local, DB is UTC
+        tz_name = current_user.timezone or 'America/La_Paz'
+        try:
+            user_tz = pytz.timezone(tz_name)
+        except:
+            user_tz = pytz.timezone('America/La_Paz')
+            
+        local_dt = user_tz.localize(datetime.combine(form.date.data, form.time.data))
+        start_utc = local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
         
         appt = Appointment(
             closer_id=current_user.id,
             lead_id=form.lead_id.data,
-            start_time=start_dt,
+            start_time=start_utc,
             status='scheduled' # Created manually => confirmed
         )
         db.session.add(appt)
         db.session.commit()
+        
+        # Auto-update status
+        if appt.lead:
+            appt.lead.update_status_based_on_debt()
         
         # Webhook
         send_calendar_webhook(appt, 'created')
@@ -524,9 +583,21 @@ def edit_appointment(id):
         form.time.data = appt.start_time.time()
         
     if form.validate_on_submit():
-        start_dt = datetime.combine(form.date.data, form.time.data)
+        # Timezone Handling: Input is Local, DB is UTC
+        tz_name = current_user.timezone or 'America/La_Paz'
+        try:
+            user_tz = pytz.timezone(tz_name)
+        except:
+            user_tz = pytz.timezone('America/La_Paz')
+            
+        local_dt = user_tz.localize(datetime.combine(form.date.data, form.time.data))
+        start_utc = local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
+        
+        # Capture old time for webhook if rescheduling
+        old_start_time = appt.start_time if appt.start_time != start_utc else None
+        
         appt.lead_id = form.lead_id.data
-        appt.start_time = start_dt
+        appt.start_time = start_utc
         # If it was canceled, maybe reset to scheduled? 
         # User implies rescheduling.
         if appt.status == 'canceled':
@@ -534,8 +605,12 @@ def edit_appointment(id):
             
         db.session.commit()
         
+        # Auto-update status
+        if appt.lead:
+            appt.lead.update_status_based_on_debt()
+        
         # Webhook
-        send_calendar_webhook(appt, 'rescheduled')
+        send_calendar_webhook(appt, 'rescheduled', old_start_time=old_start_time)
         
         flash('Cita reagendada.')
         return redirect(url_for('closer.dashboard'))
@@ -560,6 +635,10 @@ def update_appt_status(id, status):
     appt.status = status
     db.session.commit()
     
+    # Auto-update status based on new appointment state
+    if appt.lead:
+        appt.lead.update_status_based_on_debt()
+    
     msg_map = {
         'completed': 'Cita marcada como Realizada.',
         'canceled': 'Cita cancelada.',
@@ -573,29 +652,226 @@ def update_appt_status(id, status):
     
     # If redirecting back to lead detail might be useful too? 
     # For now, back to referrer or dashboard
-    return redirect(request.referrer or url_for('closer.dashboard'))
+    return redirect(request.referrer or url_for('closer.agendas'))
 
-@bp.route('/dashboard')
+@bp.route('/dashboard', methods=['GET', 'POST'])
 @closer_required
 def dashboard():
-    today = date.today()
-    today_start = datetime.combine(today, time.min)
-    today_end = datetime.combine(today, time.max)
+    tz_name = current_user.timezone or 'America/La_Paz'
+    try:
+        user_tz = pytz.timezone(tz_name)
+    except:
+        user_tz = pytz.timezone('America/La_Paz')
+        
+    now_local = datetime.now(user_tz)
+    today_local = now_local.date()
+    start_local = user_tz.localize(datetime.combine(today_local, time.min))
+    end_local = user_tz.localize(datetime.combine(today_local, time.max))
+    start_utc = start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    end_utc = end_local.astimezone(pytz.UTC).replace(tzinfo=None)
+
+    # --- 1. KPIs ---
     
-    # Agendas Hoy
-    today_appointments = Appointment.query.filter(
+    # A. Commission Month & Day
+    month_start_local = user_tz.localize(datetime(today_local.year, today_local.month, 1))
+    month_start_utc = month_start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    # Calculate Commission (Assuming 10% of Net Cash Collected)
+    def calculate_commission(start_dt, end_dt):
+        # Gross Cash from my enrollments
+        gross_cash = db.session.query(db.func.sum(Payment.amount)).select_from(Enrollment).join(Payment).filter(
+            Enrollment.closer_id == current_user.id,
+            Payment.status == 'completed',
+            Payment.date >= start_dt,
+            Payment.date <= end_dt
+        ).scalar() or 0.0
+        
+        # Platform Fees for these payments
+        fees = db.session.query(
+            db.func.sum(
+                (Payment.amount * (PaymentMethod.commission_percent / 100.0)) + PaymentMethod.commission_fixed
+            )
+        ).select_from(Enrollment).join(Payment).join(PaymentMethod).filter(
+             Enrollment.closer_id == current_user.id,
+             Payment.status == 'completed',
+             Payment.date >= start_dt,
+             Payment.date <= end_dt
+        ).scalar() or 0.0
+        
+        net_cash = gross_cash - fees
+        return net_cash * 0.10
+
+    commission_month = calculate_commission(month_start_utc, end_utc)
+    commission_today = calculate_commission(start_utc, end_utc)
+
+    # B. Closing Rate Month & Day
+    def calculate_closing_rate(start_dt, end_dt):
+        completed_appts = Appointment.query.filter(
+            Appointment.closer_id == current_user.id,
+            Appointment.start_time >= start_dt,
+            Appointment.start_time <= end_dt,
+            Appointment.status == 'completed'
+        ).count()
+        
+        sales_count = Enrollment.query.filter(
+            Enrollment.closer_id == current_user.id,
+            Enrollment.enrollment_date >= start_dt,
+            Enrollment.enrollment_date <= end_dt,
+            Enrollment.status != 'dropped'
+        ).count()
+        
+        return (sales_count / completed_appts * 100) if completed_appts > 0 else 0
+
+    closing_rate_month = calculate_closing_rate(month_start_utc, end_utc)
+    closing_rate_today = calculate_closing_rate(start_utc, end_utc)
+
+    # C. Daily Progress (Agendas Processed + Report Done / Total Agendas + 1)
+    # Total Agendas Today (including canceled/no-show to encourage processing everything)
+    total_agendas_query = Appointment.query.filter(
         Appointment.closer_id == current_user.id,
-        Appointment.start_time >= today_start,
-        Appointment.start_time <= today_end,
-        Appointment.status != 'canceled'
-    ).all()
+        Appointment.start_time >= start_utc,
+        Appointment.start_time <= end_utc
+    )
+    total_agendas_count = total_agendas_query.count()
     
-    # Next Calls
-    now = datetime.now()
+    # Processed: completed, no_show, canceled
+    processed_agendas_count = total_agendas_query.filter(Appointment.status.in_(['completed', 'no_show', 'canceled'])).count()
+    
+    # Report Status
+    today_stats = CloserDailyStats.query.filter_by(closer_id=current_user.id, date=today_local).first()
+    report_done = 1 if today_stats else 0 # Simplified check. Ideally check if answers exist too.
+    
+    total_steps = total_agendas_count + 1
+    completed_steps = processed_agendas_count + report_done
+    daily_progress = (completed_steps / total_steps * 100) if total_steps > 0 else 0
+    if daily_progress > 100: daily_progress = 100
+
+    # --- 2. COLUMNS DATA ---
+
+    # Col 1: Upcoming Agendas (Today and Future)
+    # Filter: Agendas for today (remaining) OR future days? 
+    # User said "Proximas agendas". 
+    # Let's show Today's agendas (sorted by time) PLUS next few future ones.
+    # Actually, listing *all* today's agendas is better for management (even past ones if not processed).
+    # "Agendas del Agente" usually implies managing the day.
+    
+    upcoming_agendas = Appointment.query.filter(
+        Appointment.closer_id == current_user.id,
+        Appointment.start_time >= start_utc,
+        Appointment.status == 'scheduled'
+    ).order_by(Appointment.start_time.asc()).limit(20).all()
+    
+    # Col 2: Recent Clients (Assigned or interacted)
+    # Broaden to include mapped via Appointment or Enrollment, and allow Students.
+    recent_clients = User.query.filter(
+        User.role.in_(['lead', 'student'])
+    ).filter(
+        or_(
+            User.enrollments.any(Enrollment.closer_id == current_user.id),
+            User.appointments_as_lead.any(Appointment.closer_id == current_user.id),
+            User.lead_profile.has(assigned_closer_id=current_user.id)
+        )
+    ).order_by(User.created_at.desc()).limit(15).all()
+
+    # Col 3: Daily Report Questions
+    questions = DailyReportQuestion.query.filter_by(is_active=True).order_by(DailyReportQuestion.order).all()
+    
+    # Handle Report POST (if specific save button pressed)
+    if request.method == 'POST' and 'save_report' in request.form:
+        if not today_stats:
+            today_stats = CloserDailyStats(closer_id=current_user.id, date=today_local)
+            db.session.add(today_stats)
+        
+        # Save Answers
+        # (Simplified logic from daily_report route)
+        current_answers = DailyReportAnswer.query.filter_by(daily_stats_id=today_stats.id).all()
+        for ans in current_answers:
+             db.session.delete(ans)
+             
+        for q in questions:
+            ans_text = request.form.get(f'question_{q.id}')
+            if q.question_type == 'boolean':
+                ans_text = 'Sí' if request.form.get(f'question_{q.id}') else 'No'
+            
+            if ans_text:
+                new_ans = DailyReportAnswer(
+                    daily_stats_id=today_stats.id,
+                    question_id=q.id,
+                    answer=str(ans_text)
+                )
+                db.session.add(new_ans)
+        
+        db.session.commit()
+        flash('Reporte diario guardado.')
+        return redirect(url_for('closer.dashboard'))
+
+    return render_template('closer/dashboard.html',
+                           commission_month=commission_month,
+                           commission_today=commission_today,
+                           closing_rate_month=closing_rate_month,
+                           closing_rate_today=closing_rate_today,
+                           daily_progress=daily_progress,
+                           upcoming_agendas=upcoming_agendas,
+                           recent_clients=recent_clients,
+                           questions=questions,
+                           today_stats=today_stats,
+                           datetime=datetime,
+                           pytz=pytz)
+
+@bp.route('/agendas')
+@closer_required
+def agendas():
+    import pytz # Import strictly for template usage if needed
+    
+    # 1. KPIs
+    # Today's calls
+    tz_name = current_user.timezone or 'America/La_Paz'
+    try:
+        closer_tz = pytz.timezone(tz_name)
+    except:
+        closer_tz = pytz.timezone('America/La_Paz')
+        
+    now_local = datetime.now(closer_tz)
+    today_local = now_local.date()
+    
+    start_local = closer_tz.localize(datetime.combine(today_local, time.min))
+    end_local = closer_tz.localize(datetime.combine(today_local, time.max))
+    
+    start_utc = start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    end_utc = end_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    todays_calls_count = Appointment.query.filter(
+        Appointment.closer_id == current_user.id,
+        Appointment.start_time >= start_utc,
+        Appointment.start_time <= end_utc,
+        Appointment.status != 'canceled'
+    ).count()
+    
+    # Pending Followups (Leads not contacted? Or manual task?)
+    # ... (existing logic)
+    
+    pending_followups = User.query.filter(
+        User.lead_profile.has(assigned_closer_id=current_user.id),
+        User.lead_profile.has(status='pending')
+    ).count() # Just an example
+    
+    # Sales this month
+    # Need month start/end in local -> UTC
+    month_start_local = closer_tz.localize(datetime(today_local.year, today_local.month, 1))
+    # ... logic for month end
+    month_start_utc = month_start_local.astimezone(pytz.UTC).replace(tzinfo=None)
+    
+    sales_this_month = Enrollment.query.filter(
+        Enrollment.closer_id == current_user.id,
+        Enrollment.enrollment_date >= month_start_utc
+    ).count()
+    
+    # Next Calls (Upcoming)
+    # Filter: start_time > now_utc
     next_calls = Appointment.query.filter(
         Appointment.closer_id == current_user.id,
-        Appointment.start_time >= now,
-        Appointment.status != 'canceled'
+        Appointment.start_time > datetime.utcnow(),
+        Appointment.status == 'scheduled'
     ).order_by(Appointment.start_time).limit(5).all()
     
     # Active Events for Links
@@ -606,37 +882,33 @@ def dashboard():
     active_enrollments = Enrollment.query.filter_by(status='active').all()
     debtors = []
     for enr in active_enrollments:
-        paid = db.session.query(db.func.sum(Payment.amount)).filter(
-            Payment.enrollment_id == enr.id,
-            Payment.status == 'completed'
-        ).scalar() or 0
-        debt = enr.total_agreed - paid
-        if debt > 0:
-            debtors.append({
-                'student': enr.student,
-                'program': enr.program,
-                'total_agreed': enr.total_agreed,
-                'total_paid': paid,
-                'debt': debt
-            })
-    
+        # Check if student is assigned to this closer?
+        # Or if enrollment is assigned to this closer?
+        # Let's filter by enrollment.closer_id == current just to be safe/consistent
+        if enr.closer_id == current_user.id:
+            paid = db.session.query(db.func.sum(Payment.amount)).filter(
+                Payment.enrollment_id == enr.id,
+                Payment.status == 'completed'
+            ).scalar() or 0
+            debt = enr.total_agreed - paid
+            if debt > 0:
+                debtors.append({
+                    'student': enr.student,
+                    'program': enr.program,
+                    'total_agreed': enr.total_agreed,
+                    'total_paid': paid,
+                    'debt': debt
+                })
     top_debtors = sorted(debtors, key=lambda x: x['debt'], reverse=True)[:5]
-    
-    # 6. Calculate Monthly Sales (Attribution Strategy)
-    # Logic: Sum total_agreed of Enrollments created this month 
-    # WHERE the student generally belongs to this closer.
-    # Attribution: The closer with the most recent 'completed' appointment before enrollment.
-    
-    first_day_month = datetime.combine(today.replace(day=1), time.min)
     
     # 6. Calculate Monthly Sales (Explicit Assignment)
     # Logic: Sum total_agreed of Enrollments created this month AND assigned to this closer.
     
-    first_day_month = datetime.combine(today.replace(day=1), time.min)
+    first_day_month = month_start_utc
     
     month_enrollments = Enrollment.query.filter(
         Enrollment.enrollment_date >= first_day_month,
-        Enrollment.enrollment_date <= today_end,
+        Enrollment.enrollment_date <= end_utc,
         Enrollment.status != 'dropped',
         Enrollment.closer_id == current_user.id # Explicit check
     ).all()
@@ -648,7 +920,7 @@ def dashboard():
     month_appointments_count = Appointment.query.filter(
         Appointment.closer_id == current_user.id,
         Appointment.start_time >= first_day_month,
-        Appointment.start_time <= today_end,
+        Appointment.start_time <= end_utc,
         Appointment.status == 'completed'
     ).count()
     
@@ -656,13 +928,15 @@ def dashboard():
     if month_appointments_count > 0:
         closing_rate = (monthly_sales_count / month_appointments_count) * 100
 
-    return render_template('closer/dashboard.html', 
-                           today_appointments=today_appointments, 
+    return render_template('closer/agendas.html', 
+                           today_appointments_count=todays_calls_count, 
                            next_calls=next_calls,
                            events=events,
                            top_debtors=top_debtors,
                            monthly_sales=monthly_sales,
-                           closing_rate=closing_rate)
+                           closing_rate=closing_rate,
+                           pytz=pytz,
+                           datetime=datetime)
 
 @bp.route('/calendar', methods=['GET'])
 @closer_required
@@ -692,13 +966,15 @@ def calendar():
         Appointment.status != 'canceled'
     ).all()
     
+    import pytz # Explicit import needed
     return render_template('closer/calendar.html', 
-                           availabilities=availabilities, 
-                           appointments=appointments,
-                           week_dates=match_dates,
+                           week_dates=match_dates, 
                            week_offset=week_offset,
+                           availabilities=availabilities,
+                           appointments=appointments,
                            today=today,
-                           now=datetime.now())
+                           now=datetime.now(),
+                           pytz=pytz)
 
 @bp.route('/calendar/update', methods=['POST'])
 @closer_required
@@ -798,7 +1074,8 @@ def create_sale():
     next_url = request.args.get('next')
     
     # Populate Choices
-    form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in Program.query.all()]
+    # Populate Choices
+    form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in Program.query.filter_by(is_active=True).all()]
     form.payment_method_id.choices = [(m.id, m.name) for m in PaymentMethod.query.filter_by(is_active=True).all()]
     
     # Handle GET with pre-fill
@@ -834,6 +1111,7 @@ def create_sale():
             if pay_type in ['full', 'down_payment', 'renewal']:
                  # Create Enrollment
                  enrollment = Enrollment(
+                     student_id=lead_id,
                      program_id=program_id,
                      total_agreed=amount if pay_type == 'full' else program.price, # Default to list price if not full, or logic? User didn't specify. Assuming list price.
                      status='active',
@@ -1160,7 +1438,7 @@ def new_sale(id):
     form = SaleForm()
     
     # Choices
-    programs = Program.query.all()
+    programs = Program.query.filter_by(is_active=True).all()
     form.program_id.choices = [(p.id, f"{p.name} (${p.price})") for p in programs]
     
     methods = PaymentMethod.query.filter_by(is_active=True).all()
@@ -1256,6 +1534,11 @@ def add_payment(id):
         db.session.add(payment)
         db.session.commit()
         
+        # Auto-update status
+        user = User.query.get(enrollment.student_id)
+        if user:
+            user.update_status_based_on_debt()
+        
         # Webhook
         send_sales_webhook(payment, current_user.username)
         
@@ -1282,6 +1565,12 @@ def edit_payment(id):
         payment.status = form.status.data
         
         db.session.commit()
+        
+        # Auto-update status
+        user = User.query.get(payment.enrollment.student_id)
+        if user:
+            user.update_status_based_on_debt()
+            
         flash('Pago actualizado.')
         return redirect(url_for('closer.lead_detail', id=payment.enrollment.student_id))
         
