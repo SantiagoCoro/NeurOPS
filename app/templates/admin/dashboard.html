@@ -1,53 +1,53 @@
-{% extends "layouts/base.html" %}
-{% from "admin/partials/dashboard_tile.html" import dashboard_tile %}
 
-{% block title %}Dashboard Admin{% endblock %}
+{% extends 'layouts/base.html' %}
 
 {% block content %}
-<div class="flex h-screen overflow-hidden">
-
-    {% include "includes/admin_sidebar.html" %}
-
-    <!-- Main Content -->
-    <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-6">
-        <header class="flex justify-between items-center mb-6">
-            <div>
-                <h3 class="text-2xl font-bold text-gray-800">Dashboard Admin</h3>
-                <p class="text-sm text-gray-500">Vista global del negocio</p>
-            </div>
-            <div class="flex space-x-2 items-center" x-data="{ period: '{{ current_period }}' }">
-                <form action="{{ url_for('admin.dashboard') }}" method="get" class="flex space-x-2 items-center">
-                    <select name="period" x-model="period" @change="if(period !== 'custom') $el.form.submit()"
-                        class="border rounded px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="this_month">Este Mes</option>
-                        <option value="last_3_months">Últimos 3 Meses</option>
-                        <option value="custom">Rango Personalizado</option>
-                    </select>
-
-                    <div x-show="period === 'custom'" class="flex space-x-2 items-center" style="display: none;">
-                        <input type="date" name="start_date" value="{{ start_date_filter }}"
-                            class="border rounded px-2 py-1 text-sm bg-white" required>
-                        <span class="text-gray-400">-</span>
-                        <input type="date" name="end_date" value="{{ end_date_filter }}"
-                            class="border rounded px-2 py-1 text-sm bg-white" required>
-                        <button type="submit"
-                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm border border-gray-300 transition">Filtrar</button>
-                    </div>
-                </form>
-            </div>
-        </header>
-
-        <!-- KPI Tiles -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {% for tile in tiles %}
-                {{ dashboard_tile(tile.title, tile.value, tile.get('value_class', ''), tile.get('subtext', ''), tile.get('icon_path', ''), tile.get('color', 'gray')) }}
-            {% endfor %}
+<div class="container mx-auto px-4 sm:px-8">
+    <div class="py-8">
+        <div>
+            <h2 class="text-2xl font-semibold leading-tight">Dashboard</h2>
         </div>
-
-    </main>
+        <div class="-mx-4 sm:-mx-8 px-4 sm:px-8 py-4 overflow-x-auto">
+            <div class="inline-block min-w-full shadow rounded-lg overflow-hidden">
+                <div id="tiles-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                    {% for tile in tiles_data %}
+                    <div class="bg-white p-4 rounded-lg shadow-md" data-tile-id="{{ loop.index0 }}">
+                        <h3 class="text-lg font-semibold">{{ tile.title }}</h3>
+                        <p class="text-2xl">{{ tile.value }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-{# Scripts for charts are removed as charts are no longer displayed #}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('tiles-container');
+        let-sortable = new Sortable(container, {
+            animation: 150,
+            ghostClass: 'blue-background-class',
+            onEnd: function (evt) {
+                const tilesOrder = [];
+                container.childNodes.forEach(node => {
+                    if (node.nodeType === 1) { // Ensure it's an element
+                        tilesOrder.push(node.getAttribute('data-tile-id'));
+                    }
+                });
+                localStorage.setItem('dashboardTilesOrder', JSON.stringify(tilesOrder));
+            }
+        });
+
+        const savedOrder = JSON.parse(localStorage.getItem('dashboardTilesOrder'));
+        if (savedOrder) {
+            savedOrder.forEach(tileId => {
+                const tile = container.querySelector(`[data-tile-id="${tileId}"]`);
+                if (tile) {
+                    container.appendChild(tile);
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}
